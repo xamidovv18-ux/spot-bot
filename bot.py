@@ -358,6 +358,14 @@ def got_payment(message):
     premium_users.add(chat_id)
     bot.send_message(chat_id, "🎉 Оплата прошла успешно! Вам активирован **безлимитный доступ, премиум-графики и Trader AI**.")
 
+@server.route(f'/{TOKEN}', methods=['POST'])
+def webhook():
+    json_string = request.get_data().decode('utf-8')
+    update = telebot.types.Update.de_json(json_string)
+    bot.process_new_updates([update])
+    return "!", 200
+
+
 if __name__ == '__main__':
     bot.remove_webhook()
     bot.set_webhook(url=f"https://spot-bot-new.onrender.com/{TOKEN}")
