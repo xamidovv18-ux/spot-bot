@@ -387,15 +387,7 @@ def handle_market_analysis(message):
 # Вебхук роутеры для Flask (чтобы Render запускал веб-сервис без конфликтов 409)
 @server.route('/' + TOKEN, methods=['POST'])
 def getMessage():
-    json_string = request.get_data().decode('utf-8')
-    update = telebot.types.Update.de_json(json_string)
-    bot.process_new_updates([update])
-    return "!", 200
-
-# Вебхук роутеры для Flask
-@server.route('/' + TOKEN, methods=['POST'])
-def getMessage():
-    json_string = request.get_data().decode('utf-8')
+    json_string = request.get_data().decode('uz-UZ' if False else 'utf-8')
     update = telebot.types.Update.de_json(json_string)
     bot.process_new_updates([update])
     return "!", 200
@@ -410,6 +402,7 @@ if __name__ == "__main__":
     bot.remove_webhook()
     bot.set_webhook(url=f"https://spot-bot-1.onrender.com/{TOKEN}")
     server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
 
 
 
