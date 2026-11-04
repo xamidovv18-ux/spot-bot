@@ -107,13 +107,13 @@ def market_analytics(message):
     )
     bot.send_message(chat_id, "📊 **Глобальная аналитика:**", parse_mode="Markdown", reply_markup=markup)
 
-# Премиум & AI меню с актуальными ценами и ссылкой на поддержку
+# Премиум & AI меню с обновленными ценами и твоей ссылкой
 @bot.message_handler(func=lambda message: message.text == "💎 Премиум & Trader AI")
 def premium_trader_ai(message):
     chat_id = message.chat.id
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("💬 Купить Премиум (Связаться)", url="https://t.me/samadkhon"),
+        types.InlineKeyboardButton("💬 Купить Премиум (Связаться)", url="https://t.me/samadkhon_khmdvv"),
         types.InlineKeyboardButton("🤖 Как спросить Trader AI?", callback_data="ask_ai_info")
     )
     text = (
@@ -125,7 +125,6 @@ def premium_trader_ai(message):
         "👇 Нажмите кнопку ниже, чтобы связаться с администратором для оплаты и активации:"
     )
     bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
-
 
 @bot.callback_query_handler(func=lambda call: call.data == "ask_ai_info")
 def ask_ai_info_callback(call):
@@ -181,7 +180,7 @@ def forex_eurusd(message):
         parse_mode="Markdown"
     )
 
-# Универсальный обработчик текста (Расширенный поиск форекс-пар, металлов, крипты + Gemini AI)
+# Универсальный обработчик текста (Поиск форекс-пар, металлов, крипты + Gemini AI)
 @bot.message_handler(func=lambda message: True)
 def handle_text_messages(message):
     text = message.text.strip().upper()
@@ -200,7 +199,6 @@ def handle_text_messages(message):
     if len(original_text.split()) == 1 and len(text) <= 10:
         sent_msg = bot.send_message(chat_id, f"🔍 Ищу котировки актива: `{text}`...", parse_mode="Markdown")
         try:
-            # Расширенный словарь форекс-пар, металлов и сырья
             forex_dict = {
                 "EURUSD": ("Евро / Доллар США (EUR/USD)", "1.0850", "🟡 NEUTRAL"),
                 "GBPUSD": ("Фунт стерлингов / Доллар (GBP/USD)", "1.2720", "🟢 BUY"),
@@ -222,7 +220,6 @@ def handle_text_messages(message):
                 )
                 return
 
-            # Проверка через CoinGecko для криптовалют
             search_url = f"https://api.coingecko.com/api/v3/search?query={text.lower()}"
             res = requests.get(search_url, timeout=5).json()
             coins = res.get("coins", [])
@@ -258,7 +255,7 @@ def handle_text_messages(message):
         except Exception:
             pass
 
-    # Запрос в Gemini AI (если модель инициализирована)
+    # Запрос в Gemini AI
     if gemini_model:
         sent_ai = bot.send_message(chat_id, "🤖 **Trader AI анализирует ваш вопрос...**", parse_mode="Markdown")
         try:
@@ -282,6 +279,7 @@ if __name__ == '__main__':
     bot.remove_webhook()
     bot.set_webhook(url=f"https://spot-bot-new.onrender.com/{TOKEN}")
     server.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
+
 
 
 
