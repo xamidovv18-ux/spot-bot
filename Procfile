@@ -1,2 +1,2 @@
-pyTelegramBotAPI
-requests
+worker: python bot.py
+
