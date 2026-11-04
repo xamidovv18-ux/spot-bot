@@ -384,18 +384,17 @@ def handle_market_analysis(message):
 
     bot.send_message(chat_id, text, parse_mode="Markdown")
 
-# Вебхук роутеры для Flask (чтобы Render запускал веб-сервис без конфликтов 409)
+# Вебхук роутеры для Flask
 @server.route('/' + TOKEN, methods=['POST'])
 def getMessage():
-    json_string = request.get_data().decode('uz-UZ' if False else 'utf-8')
+    json_string = request.get_data().decode('utf-8')
     update = telebot.types.Update.de_json(json_string)
     bot.process_new_updates([update])
     return "!", 200
 
 @server.route("/")
 def webhook():
-    bot.remove_webhook()
-    bot.set_webhook(url=f"https://spot-bot-1.onrender.com/{TOKEN}")
+    # Больше не дергаем Telegram API при каждом HTTP-запросе на главную
     return "Spot Bot is running on Render!", 200
 
 if __name__ == "__main__":
