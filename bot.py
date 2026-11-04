@@ -4,11 +4,21 @@ import telebot
 from telebot import types
 import requests
 from flask import Flask, request
+import google.generativeai as genai
 
 # Инициализация бота и Flask
 TOKEN = "9223957380:AAekwjCuZcLfVxK0HM87HHyNZZ73Mx17mYw"
 bot = telebot.TeleBot(TOKEN)
 server = Flask(__name__)
+
+# Настройка Gemini API (ключ автоматически берется из переменных окружения Render)
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    # Используем стабильную модель Gemini
+    gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+else:
+    gemini_model = None
 
 premium_users = set()
 
@@ -119,12 +129,12 @@ def premium_trader_ai(message):
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("🚀 Активировать Premium (Безлимит + AI)", callback_data="buy_premium"),
-        types.InlineKeyboardButton("🤖 Задать вопрос Trader AI (Gemini)", callback_data="ask_ai")
+        types.InlineKeyboardButton("🤖 Как спросить Trader AI?", callback_data="ask_ai_info")
     )
     text = (
         "💎 **Премиум-доступ & Trader AI (Gemini)**\n\n"
-        "• 🧠 **Trader AI:** Получайте глубокий искусственный интеллект-анализ рынка, прогнозирование трендов и готовые сигналы.\n"
-        "• ⚡ **Безлимитные запросы:** Снимает все ограничения на поиск активов и графики.\n\n"
+        "• 🧠 **Trader AI:** Интегрирован с искусственным интеллектом Google Gemini. Вы можете написать любой вопрос по трейдингу прямо в чат!\n"
+        "• ⚡ **Безлимитные запросы:** Снимает все ограничения на анализ активов.\n\n"
         "Выберите действие ниже:"
     )
     bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
@@ -139,13 +149,13 @@ def buy_premium_callback(call):
         parse_mode="Markdown"
     )
 
-@bot.callback_query_handler(func=lambda call: call.data == "ask_ai")
-def ask_ai_callback(call):
+@bot.callback_query_handler(func=lambda call: call.data == "ask_ai_info")
+def ask_ai_info_callback(call):
     bot.answer_callback_query(call.id)
     bot.send_message(
         call.message.chat.id,
-        "🤖 **Trader AI готов к работе!**\n\n"
-        "Напишите в чат любой вопрос по рынку (например: *«Какой прогноз по Bitcoin на эту неделю?»* или *«Стоит ли покупать золото?»*), и искусственный интеллект проанализирует данные.",
+        "🤖 **Как работает Trader AI?**\n\n"
+        "Просто напишите ваш вопрос обычным текстом в чат (например: *«Какой прогноз по биткоину?»*, *«Что такое стоп-лосс?»* или *«Стоит ли покупать золото сейчас?»*). Нейросеть Gemini мгновенно ответит вам!",
         parse_mode="Markdown"
     )
 
@@ -172,10 +182,11 @@ def crypto_bitcoin(message):
     except Exception:
         bot.send_message(chat_id, "⚠️ Ошибка получения данных с биржи. Попробуйте позже.")
 
-# Универсальный конвертер и поисковик по любому тексту (крипта, форекс, спот)
+# Универсальный обработчик текста: поиск монет, конвертер ИЛИ запрос к Gemini AI
 @bot.message_handler(func=lambda message: True)
-def handle_universal_search(message):
+def handle_text_messages(message):
     text = message.text.strip().upper()
+    original_text = message.text.strip()
     chat_id = message.chat.id
 
     # Игнорируем стандартные кнопки меню
@@ -187,61 +198,81 @@ def handle_universal_search(message):
     if text in menu_buttons or text.startswith('/'):
         return
 
-    sent_msg = bot.send_message(chat_id, f"🔍 Ищу котировки и анализирую актив: `{text}`...", parse_mode="Markdown")
+    # Сначала проверяем, является ли запрос тикером крипты или форекса (длина обычно до 10 символов и без пробелов)
+    if len(original_text.split()) == 1 and len(text) <= 10:
+        sent_msg = bot.send_message(chat_id, f"🔍 Ищу котировки и анализирую актив: `{text}`...", parse_mode="Markdown")
+        try:
+            search_url = f"https://api.coingecko.com/api/v3/search?query={text.lower()}"
+            res = requests.get(search_url, timeout=5).json()
+            coins = res.get("coins", [])
 
-    try:
-        # Проверяем через CoinGecko API
-        search_url = f"https://api.coingecko.com/api/v3/search?query={text.lower()}"
-        res = requests.get(search_url, timeout=5).json()
-        coins = res.get("coins", [])
+            if coins:
+                coin_id = coins[0]["id"]
+                coin_name = coins[0]["name"]
+                symbol = coins[0]["symbol"].upper()
 
-        if coins:
-            coin_id = coins[0]["id"]
-            coin_name = coins[0]["name"]
-            symbol = coins[0]["symbol"].upper()
+                price_url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd,uzs,rub"
+                p_data = requests.get(price_url, timeout=5).json().get(coin_id, {})
 
-            price_url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd,uzs,rub"
-            p_data = requests.get(price_url, timeout=5).json().get(coin_id, {})
+                usd = p_data.get("usd", 0)
+                uzs = p_data.get("uzs", 0)
+                rub = p_data.get("rub", 0)
 
-            usd = p_data.get("usd", 0)
-            uzs = p_data.get("uzs", 0)
-            rub = p_data.get("rub", 0)
-
-            response_text = (
-                f"📈 **Анализ актива: {coin_name} ({symbol})**\n\n"
-                f"💵 **Актуальный курс / Конвертер:**\n"
-                f"• USD: ${usd:,.4f}\n"
-                f"• UZS: {uzs:,.2f} so'm\n"
-                f"• RUB: {rub:,.2f} руб.\n\n"
-                f"📊 **Сигнал:** 🟢 BUY / Активный мониторинг"
-            )
-            bot.edit_message_text(response_text, chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown")
-        else:
-            # Если это форекс или металл
-            forex_dict = {
-                "EURUSD": ("Евро / Доллар США", "1.0850"),
-                "GBPUSD": ("Фунт стерлингов / Доллар", "1.2720"),
-                "USDJPY": ("Доллар / Японская иена", "154.50"),
-                "XAUUSD": ("Золото (Gold / USD)", "$2,740.50"),
-                "XAGUSD": ("Серебро (Silver / USD)", "$32.40"),
-                "BRENT": ("Нефть Brent", "$74.20")
-            }
-            clean_text = text.replace("/", "")
-            if clean_text in forex_dict:
-                name, rate = forex_dict[clean_text]
-                bot.edit_message_text(
-                    f"💱 **Форекс / Спот: {name}**\n\n"
-                    f"💵 **Текущая котировка:** `{rate}`\n"
-                    f"📊 **Технический вердикт:** Стабильный тренд.",
-                    chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown"
+                response_text = (
+                    f"📈 **Анализ актива: {coin_name} ({symbol})**\n\n"
+                    f"💵 **Актуальный курс / Конвертер:**\n"
+                    f"• USD: ${usd:,.4f}\n"
+                    f"• UZS: {uzs:,.2f} so'm\n"
+                    f"• RUB: {rub:,.2f} руб.\n\n"
+                    f"📊 **Сигнал:** 🟢 BUY / Активный мониторинг"
                 )
+                bot.edit_message_text(response_text, chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown")
+                return
             else:
-                bot.edit_message_text(
-                    f"❌ Актив или пара `{text}` не найдены. Попробуйте ввести другой тикер (например: `ETH`, `SOL`, `EURUSD`, `XAUUSD`).",
-                    chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown"
-                )
-    except Exception:
-        bot.edit_message_text("⚠️ Ошибка соединения с торговыми серверами.", chat_id=chat_id, message_id=sent_msg.message_id)
+                forex_dict = {
+                    "EURUSD": ("Евро / Доллар США", "1.0850"),
+                    "GBPUSD": ("Фунт стерлингов / Доллар", "1.2720"),
+                    "USDJPY": ("Доллар / Японская иена", "154.50"),
+                    "XAUUSD": ("Золото (Gold / USD)", "$2,740.50"),
+                    "XAGUSD": ("Серебро (Silver / USD)", "$32.40"),
+                    "BRENT": ("Нефть Brent", "$74.20")
+                }
+                clean_text = text.replace("/", "")
+                if clean_text in forex_dict:
+                    name, rate = forex_dict[clean_text]
+                    bot.edit_message_text(
+                        f"💱 **Форекс / Спот: {name}**\n\n"
+                        f"💵 **Текущая котировка:** `{rate}`\n"
+                        f"📊 **Технический вердикт:** Стабильный тренд.",
+                        chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown"
+                    )
+                    return
+        except Exception:
+            pass
+        # Если тикер не найден на бирже, передаем текст в Gemini AI ниже
+
+    # Если это развернутый вопрос или текст — отправляем в Trader AI (Gemini)
+    if gemini_model:
+        sent_ai = bot.send_message(chat_id, "🤖 **Trader AI анализирует ваш вопрос...**", parse_mode="Markdown")
+        try:
+            prompt = (
+                "Ты — профессиональный финансовый аналитик, трейдер и эксперт по рынкам криптовалют и форекс. "
+                "Ответь на вопрос пользователя грамотно, конструктивно, с точки зрения трейдинга и анализа рисков. "
+                f"Вопрос пользователя: {original_text}"
+            )
+            response = gemini_model.generate_content(prompt)
+            ai_answer = response.text
+
+            formatted_answer = (
+                f"🤖 **Trader AI (Gemini Аналитика):**\n\n"
+                f"{ai_answer}\n\n"
+                f"💡 *Анализ подготовлен глобальным терминалом.*"
+            )
+            bot.edit_message_text(formatted_answer, chat_id=chat_id, message_id=sent_ai.message_id, parse_mode="Markdown")
+        except Exception as e:
+            bot.edit_message_text("⚠️ Ошибка обращения к Trader AI. Попробуйте сформулировать вопрос иначе.", chat_id=chat_id, message_id=sent_ai.message_id)
+    else:
+        bot.send_message(chat_id, "⚠️ Trader AI временно недоступен (не настроен GEMINI_API_KEY на сервере).")
 
 # Обязательный роут для вебхука Telegram без ошибок 404
 @server.route(f'/{TOKEN}', methods=['POST'])
@@ -255,6 +286,7 @@ if __name__ == '__main__':
     bot.remove_webhook()
     bot.set_webhook(url=f"https://spot-bot-new.onrender.com/{TOKEN}")
     server.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
+
 
 
 
