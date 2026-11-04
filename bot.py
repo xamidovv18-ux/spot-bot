@@ -1,5 +1,8 @@
+import os
 import telebot
 from telebot import types
+from flask import Flask, request
+
 requests = None
 try:
     import requests
@@ -9,6 +12,8 @@ except ImportError:
 # Твой актуальный токен бота
 TOKEN = '9223957380:AAEkwjCuZcLfVxK0HM87HHyNZZ73Mxl7mYw'
 bot = telebot.TeleBot(TOKEN)
+
+server = Flask(__name__)
 
 # Мультиязычные тексты, гиды для новичков и Премиум
 LANGUAGES = {
@@ -130,29 +135,6 @@ LANGUAGES = {
         'error': "⚠️ An error occurred. Try again later.",
         'back': "🔙 Main Menu"
     },
-    'ar': {
-        'welcome': "👋 **مرحباً بك في خدمة التداول الفوري العالمية.**\n\nاختر لغتك:",
-        'guide_btn': "📖 دليل الاستخدام",
-        'choose_action': "👇 اختر القسم:",
-        'btn_btc': "🪙 سعر وتحليل البيتكوين",
-        'btn_gold': "🥇 الذهب (XAU/USD)",
-        'btn_nfp': "📰 الأخبار الاقتصادية (NFP)",
-        'btn_search': "🔍 تحليل أي أصل",
-        'btn_premium': "💎 ميزات بريميوم",
-        'btn_lang': "🌐 تغيير اللغة",
-        'guide_text': "📖 **دليل المستخدم:**\n\nخدمة مراقبة الأسعار الفورية الحلال للعملات الرقمية والذهب.",
-        'btc_info': "🪙 **البيتكوين - تحليل فوري**\n\n📈 **السعر الحالي:**",
-        'gold_info': "🥇 **الذهب (XAU/USD)**\n\n📈 **السعر الفوري:**",
-        'nfp_info': "📰 **أخبار NFP**\n\nبيانات الوظائف الأمريكية وأثرها على الأسواق.",
-        'search_prompt': "🔍 **التحليل الآلي**\n\nأرسل اسم أي أصل (مثل: `bitcoin`, `ethereum`):",
-        'premium_info': (
-            "💎 **ميزات بريميوم للمتداولين**\n\n"
-            "🚀 المحفظة الشخصية | 🔔 تنبيهات الأسعار الفورية | 📊 تحليلات متقدمة | 🚫 بدون إعلانات.\n\n✨ *تواصل معنا للتفعيل.*"
-        ),
-        'not_found': "❌ لم يتم العثور على شيء.",
-        'error': "⚠️ حدث خطأ.",
-        'back': "🔙 القائمة الرئيسية"
-    },
     'tr': {
         'welcome': "👋 **Küresel Spot ve Ticaret Servisine Hoş Geldiniz.**\n\nDilinizi seçin:",
         'guide_btn': "📖 Bot Nasıl Kullanılır? (Rehber)",
@@ -187,31 +169,29 @@ user_languages = {}
 def get_user_lang(chat_id):
     return user_languages.get(chat_id, 'uz')
 
-# Безопасная функция анализа рынка (никогда не падает)
 def analyze_market_asset(query):
     try:
         query = query.strip().lower()
         search_url = f"https://api.coingecko.com/api/v3/search?query={query}"
         resp = requests.get(search_url, timeout=5).json()
         coins = resp.get('coins', [])
-        
         if not coins:
             return None
-        
+
         coin_id = coins[0]['id']
         coin_name = coins[0]['name']
         coin_symbol = coins[0]['symbol'].upper()
-        
+
         detail_url = f"https://api.coingecko.com/api/v3/coins/{coin_id}?localization=false&sparkline=false"
         detail_data = requests.get(detail_url, timeout=5).json()
-        
+
         market_data = detail_data.get('market_data', {})
         prices = market_data.get('current_price', {})
         change_24h = market_data.get('price_change_percentage_24h', 0) or 0
         volume_24h = market_data.get('total_volume', {}).get('usd', 0) or 0
         market_cap = market_data.get('market_cap', {}).get('usd', 0) or 0
         ath = market_data.get('ath', {}).get('usd', 0) or 0
-        
+
         if change_24h > 3:
             tech_verdict = "🟢 Сильный импульс (Бычий тренд)"
         elif change_24h > 0:
@@ -242,7 +222,6 @@ def get_gold_price():
     except Exception as e:
         return None
 
-# Команда /start — Выбор языка
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -250,8 +229,7 @@ def send_welcome(message):
         types.InlineKeyboardButton("🇺🇿 O'zbekcha", callback_data="lang_uz"),
         types.InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
         types.InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
-        types.InlineKeyboardButton("🇹🇷 Türkçe", callback_data="lang_tr"),
-        types.InlineKeyboardButton("🇸🇦 العربية", callback_data="lang_ar")
+        types.InlineKeyboardButton("🇹🇷 Türkçe", callback_data="lang_tr")
     )
     text = "🌍 **Global Spot & Trading Terminal**\n\nSelect language / Tilni tanlang / Выберите язык:"
     bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode="Markdown")
@@ -259,7 +237,7 @@ def send_welcome(message):
 def show_main_menu(chat_id, message_id=None):
     lang = get_user_lang(chat_id)
     t = LANGUAGES[lang]
-    
+
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton(t['guide_btn'], callback_data="menu_guide"),
@@ -270,7 +248,7 @@ def show_main_menu(chat_id, message_id=None):
         types.InlineKeyboardButton(t['btn_premium'], callback_data="menu_premium"),
         types.InlineKeyboardButton(t['btn_lang'], callback_data="menu_lang_change")
     )
-    
+
     text = f"{t['welcome']}\n\n{t['choose_action']}"
     if message_id:
         try:
@@ -286,7 +264,7 @@ def callback_query(call):
     data = call.data
     lang = get_user_lang(chat_id)
     t = LANGUAGES[lang]
-    
+
     try:
         if data.startswith("lang_"):
             user_languages[chat_id] = data.split('_')[1]
@@ -322,7 +300,7 @@ def callback_query(call):
                     f"• UZS: `{p.get('uzs', 0):,.2f} so'm`\n"
                     f"• RUB: `{p.get('rub', 0):,.2f} руб.`\n\n"
                     f"📊 **Анализ:** {res['tech_verdict']} (`{res['change_24h']:+.2f}%`)\n"
-                    f"✅ Чистый спот без риба."
+                    f"✅ Чистый спот."
                 )
             else:
                 text = t['error']
@@ -368,21 +346,20 @@ def callback_query(call):
     except Exception as e:
         bot.answer_callback_query(call.id, "⚠️ Ошибка обработки")
 
-# Абсолютно безопасный текстовый обработчик (всегда отвечает пользователю)
 @bot.message_handler(func=lambda message: True)
 def handle_market_analysis(message):
     chat_id = message.chat.id
     query = message.text.strip()
     if query.startswith('/'):
         return
-        
+
     lang = get_user_lang(chat_id)
     t = LANGUAGES[lang]
-    
+
     try:
         bot.send_chat_action(chat_id, 'typing')
         res = analyze_market_asset(query)
-        
+
         if res:
             p = res['prices']
             text = (
@@ -390,7 +367,7 @@ def handle_market_analysis(message):
                 f"💰 **Спотовая цена:**\n"
                 f"• USD: `${p.get('usd', 0):,.4f}`\n"
                 f"• UZS: `{p.get('uzs', 0):,.2f} so'm`\n"
-                f"• RUB: `{p.get('rub', 0):,.4f} руб.`\n\n"
+                f"• RUB: `${p.get('rub', 0):,.4f} руб.`\n\n"
                 f"📈 **Технический срез:**\n"
                 f"• Изменение (24ч): `{res['change_24h']:+.2f}%`\n"
                 f"• Вердикт: {res['tech_verdict']}\n"
@@ -398,15 +375,27 @@ def handle_market_analysis(message):
                 f"🏛 **Фундаментальные метрики:**\n"
                 f"• Капитализация рынка: `${res['market_cap']:,.0f}`\n"
                 f"• Исторический максимум (ATH): `${res['ath']:,.2f}`\n\n"
-                f"✅ Анализ выполнен в реальном времени по честному споту."
+                f"✅ Анализ выполнен в реальном времени."
             )
         else:
             text = t['not_found']
     except Exception as e:
         text = t['error']
-        
+
     bot.send_message(chat_id, text, parse_mode="Markdown")
 
+# Вебхук роутеры для Flask (чтобы Render запускал веб-сервис без конфликтов 409)
+@server.route('/' + TOKEN, methods=['POST'])
+def getMessage():
+    json_string = request.get_data().decode('utf-8')
+    update = telebot.types.Update.de_json(json_string)
+    bot.process_new_updates([update])
+    return "!", 200
+
+@server.route("/")
+def webhook():
+    bot.remove_webhook()
+    return "Spot Bot is running on Render!", 200
+
 if __name__ == '__main__':
-    print("Идеальный мультиязычный спот-бот запущен и защищен от ошибок...")
-    bot.infinity_polling()
+    server.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
