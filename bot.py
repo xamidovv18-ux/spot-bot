@@ -107,21 +107,25 @@ def market_analytics(message):
     )
     bot.send_message(chat_id, "📊 **Глобальная аналитика:**", parse_mode="Markdown", reply_markup=markup)
 
-# Премиум & AI меню
+# Премиум & AI меню с актуальными ценами и ссылкой на поддержку
 @bot.message_handler(func=lambda message: message.text == "💎 Премиум & Trader AI")
 def premium_trader_ai(message):
     chat_id = message.chat.id
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("🚀 Активировать Premium", callback_data="buy_premium"),
+        types.InlineKeyboardButton("💬 Купить Премиум (Связаться)", url="https://t.me/samadkhon"),
         types.InlineKeyboardButton("🤖 Как спросить Trader AI?", callback_data="ask_ai_info")
     )
-    bot.send_message(chat_id, "💎 **Премиум-доступ & Trader AI (Gemini):**", parse_mode="Markdown", reply_markup=markup)
+    text = (
+        "💎 **Премиум-доступ & Trader AI (Gemini)**\n\n"
+        "Получите безлимитный доступ ко всем функциям терминала, расширенным графикам и искусственному интеллекту.\n\n"
+        "💳 **Наши тарифы:**\n"
+        "• 📅 **1 Месяц:** `$10`\n"
+        "• 📅 **1 Год:** `$100` *(Выгода!)*\n\n"
+        "👇 Нажмите кнопку ниже, чтобы связаться с администратором для оплаты и активации:"
+    )
+    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
 
-@bot.callback_query_handler(func=lambda call: call.data == "buy_premium")
-def buy_premium_callback(call):
-    bot.answer_callback_query(call.id)
-    bot.send_message(call.message.chat.id, "💳 Для активации безлимита обратитесь в поддержку.", parse_mode="Markdown")
 
 @bot.callback_query_handler(func=lambda call: call.data == "ask_ai_info")
 def ask_ai_info_callback(call):
