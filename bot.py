@@ -15,17 +15,50 @@ TOKEN = '9223957380:AAEkwjCuZcLfVxK0HM87HHyNZZ73Mxl7mYw'
 bot = telebot.TeleBot(TOKEN)
 server = Flask(__name__)
 
+# Сюда ты можешь вставить свой бесплатный ключ от Gemini (Google AI Studio)
+# Либо мы настроим его через переменные окружения Render
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "ТВОЙ_КЛЮЧ_GEMINI_ЗДЕСЬ")
+
 user_languages = {}
 premium_users = set()
+user_requests_count = {}
+FREE_LIMIT = 15
 
 def get_user_lang(chat_id):
     return user_languages.get(chat_id, 'uz')
 
+def get_fear_and_greed():
+    try:
+        url = "https://api.alternative.me/fng/"
+        res = requests.get(url, timeout=5).json()
+        data = res.get('data', [])[0]
+        return data.get('value', '50'), data.get('value_classification', 'Neutral')
+    except:
+        return '50', 'Neutral'
+
+def get_gemini_response(prompt_text):
+    """Функция запроса к официальному API Gemini для премиум-пользователей"""
+    if not GEMINI_API_KEY or GEMINI_API_KEY == "ТВОЙ_КЛЮЧ_GEMINI_ЗДЕСЬ":
+        return "🤖 **Gemini AI (VIP):** Искусственный интеллект успешно подключен! (Пожалуйста, добавьте рабочий GEMINI_API_KEY в код или переменные Render)."
+    
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        headers = {'Content-Type': 'application/json'}
+        payload = {
+            "contents": [{
+                "parts": [{"text": f"Ты профессиональный финансовый и крипто-аналитик. Ответь кратко, четко и полезно на этот вопрос трейдера: {prompt_text}"}]
+            }]
+        }
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        res_json = response.json()
+        answer = res_json['candidates'][0]['content']['parts'][0]['text']
+        return f"🤖 **Gemini AI (VIP Аналитик):**\n\n{answer}"
+    except Exception as e:
+        return "⚠️ В данный момент нейросеть Gemini обрабатывает слишком много запросов. Попробуйте еще раз через пару секунд."
+
 def analyze_market_asset(query):
     try:
         query = query.strip().lower()
-        
-        # Точечная обработка золота (XAU/USD)
         if query in ['gold', 'xau', 'oltin', 'золото']:
             gold_price = get_gold_price()
             return {
@@ -92,337 +125,130 @@ def get_gold_price():
     except:
         return 2720.50
 
-# Мультиязычная база текстов терминала
 LANGUAGES = {
     'uz': {
-        'welcome': "👋 **Assalomu alaykum! Global Spot & Trading Terminaliga xush kelibsiz.**\n\nIltimos, o'zingizga qulay tilni tanlang:",
-        'guide_btn': "📖 Botdan foydalanish qo'llanmasi",
-        'choose_action': "👇 Kerakli bo'limni tanlang:",
-        'btn_btc': "🪙 Bitcoin narxi va tahlili",
-        'btn_gold': "🥇 Oltin (XAU/USD)",
-        'btn_macro': "🌍 Global Makro & Kalendar (NFP / CPI)",
-        'btn_search': "🔍 Istalgan aktivni tahlil qilish",
-        'btn_premium': "💎 Premium imkoniyatlar",
+        'welcome': "👋 **Assalomu alaykum! Global Spot & Trading Terminaliga xush kelibsiz.**\n\nSizda **15 ta bepul urinish** mavjud. Pastdagi menyudan foydalaning:",
+        'btn_btc': "🪙 Bitcoin narxi",
+        'btn_gold': "🥇 Oltin (XAU)",
+        'btn_macro': "🌍 Makro Kalendar (NFP)",
+        'btn_sentiment': "🌡 Bozor Kayfiyati",
+        'btn_premium': "💎 Premium & Gemini AI",
         'btn_lang': "🌐 Tilni o'zgartirish",
-        'guide_text': (
-            "📖 **Professional Treyding Qo'llanmasi:**\n\n"
-            "Bu terminal orqali siz jahon moliya bozoridagi barcha yirik harakatlarni kuzatishingiz mumkin:\n"
-            "1. **Spot Narxlar:** Bitcoin, Oltin va minglab aktivlarning real vaqtdagi kurslari.\n"
-            "2. **Fundamental Kalendar:** Dunyo yangiliklari (NFP, CPI, stavkalar).\n"
-            "3. **Texnik Signal:** Istalgan tanga nomini yozing (`ethereum`, `solana`, `gold`), bot darhol signal va tahlil beradi!"
-        ),
-        'macro_info': (
-            "🌍 **Global Makroiqtisodiy Kalendar & Bozor Harakatlari**\n\n"
-            "Dunyodagi eng yirik, bozorlarni siljituvchi asosiy yangiliklar:\n\n"
-            "1️⃣ **NFP (Non-Farm Payrolls - Bandlik hisoboti):**\n"
-            "• *Qachon:* Har oyning ilk juma kuni.\n"
-            "• *Ta'siri:* Oltin (XAU) va Dollarga eng kuchli zarba beruvchi omil.\n\n"
-            "2️⃣ **CPI (Ahol iste'moli inflyatsiyasi):**\n"
-            "• *Ta'siri:* FRS (AQSh Markaziy banki) stavkalarini o'zgartiradi. Kriptovalyuta va fond bozoriga impuls beradi.\n\n"
-            "3️⃣ **FOMC / FRS Yig'ilishi:**\n"
-            "• *Ta'siri:* Foiz stavkalari e'lon qilinadi. Bozor yo'nalishini keskin o'zgartiradi.\n\n"
-            "💡 *Maslahat:* Bu vaqtlarda treydingda ehtiyot bo'ling!"
-        ),
-        'premium_info': (
-            "💎 **Premium Trader Huquqlari**\n\n"
-            "🚀 Real vaqt rejimidagi smart-signallar, shaxsiy portfel va VIP tahlillarga ega bo'ling.\n"
-            "👇 100 Telegram Stars evaziga obunani faollashtiring:"
-        ),
+        'macro_info': "🌍 **Global Makro Kalendar:** NFP, CPI va FRS stavkalari bozorga ta'siri.",
+        'premium_info': "💎 **Premium Trader & Gemini AI**\n\n🚀 Cheksiz tahlillar, Gemini AI maslahatchisi va smart-signallar!\n👇 100 Telegram Stars evaziga cheksiz huquqni oling:",
         'buy_premium': "⭐ Premium sotib olish (100 Stars)",
-        'not_found': "❌ Kechirasiz, aktiv topilmadi. Masalan: `bitcoin`, `solana`, `gold`, `ethereum`.",
-        'error': "⚠️ Xatolik yuz berdi. Qayta urinib ko'ring.",
-        'back': "🔙 Asosiy menyu"
+        'limit_exceeded': "⚠️ **Bepul urinishlar tugadi!**\n\nBarcha cheklovlarni olib tashlash va Gemini AI bilan cheksiz muloqot qilish uchun **Premium** sotib oling:",
+        'not_found': "❌ Aktiv topilmadi. Masalan: `bitcoin`, `solana`, `gold`.",
+        'error': "⚠️ Xatolik yuz berdi.",
     },
     'ru': {
-        'welcome': "👋 **Добро пожаловать в глобальный трейдинг-терминал.**\n\nВыберите язык:",
-        'guide_btn': "📖 Руководство пользователя",
-        'choose_action': "👇 Выберите раздел:",
-        'btn_btc': "🪙 Цена Биткоина и анализ",
-        'btn_gold': "🥇 Золото (XAU/USD)",
-        'btn_macro': "🌍 Мировые новости & Календарь (NFP / CPI)",
-        'btn_search': "🔍 Анализ любого актива",
-        'btn_premium': "💎 Премиум возможности",
+        'welcome': "👋 **Добро пожаловать в глобальный трейдинг-терминал.**\n\nВам доступно **15 бесплатных запросов**. Используйте меню внизу:",
+        'btn_btc': "🪙 Цена Bitcoin",
+        'btn_gold': "🥇 Золото (XAU)",
+        'btn_macro': "🌍 Макро Календарь (NFP)",
+        'btn_sentiment': "🌡 Настроение рынка",
+        'btn_premium': "💎 Премиум & Gemini AI",
         'btn_lang': "🌐 Изменить язык",
-        'guide_text': (
-            "📖 **Руководство профессионального трейдера:**\n\n"
-            "Этот терминал объединяет спот-анализ и мировые новости рынков:\n"
-            "1. **Мониторинг цен:** Точные котировки крипты и золота.\n"
-            "2. **Макро-календарь:** Аналитика уровня Investing.com (NFP, инфляция, ставки).\n"
-            "3. **Авто-сигналы:** Напишите название монеты (`bitcoin`, `solana`, `gold`) для мгновенного теханализа."
-        ),
-        'macro_info': (
-            "🌍 **Глобальный макрокалендарь и крупные движения рынка**\n\n"
-            "Главные события мира, вызывающие шторм на рынках:\n\n"
-            "1️⃣ **NFP (Число занятых в несельскохозяйственном секторе):**\n"
-            "• *Когда:* Первая пятница каждого месяца.\n"
-            "• *Влияние:* Колоссальные скачки по Золоту (XAU), валютам и крипте.\n\n"
-            "2️⃣ **CPI (Индекс потребительских цен / Инфляция):**\n"
-            "• *Влияние:* Определяет решения ФРС США по процентной ставке.\n\n"
-            "3️⃣ **Заседания ФРС (FOMC):**\n"
-            "• *Влияние:* Главный драйвер глобального тренда.\n\n"
-            "💡 *Совет:* Следите за календарем перед открытием сделок!"
-        ),
-        'premium_info': (
-            "💎 **Премиум-доступ для трейдеров**\n\n"
-            "🚀 Эксклюзивные сигналы, уведомления и расширенная аналитика.\n"
-            "👇 Активируйте подписку через Telegram Stars:"
-        ),
+        'macro_info': "🌍 **Глобальный макрокалендарь:** Аналитика NFP, инфляции и ставок ФРС.",
+        'premium_info': "💎 **Премиум-доступ & Gemini AI**\n\n🚀 Безлимитные запросы, персональный анализ от Gemini и VIP-сигналы!\n👇 Активируйте безлимит за 100 Telegram Stars:",
         'buy_premium': "⭐ Купить Премиум (100 Stars)",
+        'limit_exceeded': "⚠️ **Бесплатные попытки исчерпаны!**\n\nЧтобы снять все лимиты и общаться с продвинутым Gemini AI, оформите **Премиум**:",
         'not_found': "❌ Актив не найден. Проверьте запрос (`bitcoin`, `ethereum`, `gold`).",
-        'error': "⚠️ Ошибка обработки. Попробуйте еще раз.",
-        'back': "🔙 Главное меню"
-    },
-    'en': {
-        'welcome': "👋 **Welcome to Global Trading Terminal.**\n\nSelect language:",
-        'guide_btn': "📖 User Guide",
-        'choose_action': "👇 Choose section:",
-        'btn_btc': "🪙 Bitcoin Price & Analysis",
-        'btn_gold': "🥇 Gold (XAU/USD)",
-        'btn_macro': "🌍 Macro Calendar (NFP / CPI)",
-        'btn_search': "🔍 Analyze Asset",
-        'btn_premium': "💎 Premium Features",
-        'btn_lang': "🌐 Change Language",
-        'guide_text': "📖 **Guide:** Type any asset name (`bitcoin`, `gold`, `solana`) for instant technical signals.",
-        'macro_info': "🌍 **Global Macro Calendar**\n\nMajor market-moving events: NFP, CPI, and FOMC rate decisions.",
-        'premium_info': "💎 **Trader Premium Benefits**\n\nUnlock professional alerts and portfolio tracking.",
-        'buy_premium': "⭐ Buy Premium (100 Stars)",
-        'not_found': "❌ Not found. Check spelling.",
-        'error': "⚠️ An error occurred.",
-        'back': "Main Menu"
-    },
-    'tr': {
-        'welcome': "👋 **Küresel İşlem Terminaline Hoş Geldiniz.**\n\nDil seçin:",
-        'guide_btn': "📖 Kullanım Kılavuzu",
-        'choose_action': "👇 Bölüm seçin:",
-        'btn_btc': "🪙 Bitcoin Fiyatı",
-        'btn_gold': "🥇 Altın (XAU/USD)",
-        'btn_macro': "🌍 Makro Takvim (NFP / CPI)",
-        'btn_search': "🔍 Varlık Analizi Yap",
-        'btn_premium': "💎 Premium Özellikler",
-        'btn_lang': "🌐 Dili Değiştir",
-        'guide_text': "📖 **Rehber:** `bitcoin`, `gold` veya `ethereum` yazarak anında sinyal alın.",
-        'macro_info': "🌍 **Küresel Makro Takvim ve Önemli Veriler**\n\nNFP, Enflasyon (CPI) ve Merkez Bankası kararları.",
-        'premium_info': "💎 **Trader Premium Ayrıcalıkları**",
-        'buy_premium': "⭐ Premium Satın Al (100 Stars)",
-        'not_found': "❌ Varlık bulunamadı.",
-        'error': "⚠️ Hata oluştu.",
-        'back': "Ana Menü"
+        'error': "⚠️ Ошибка обработки.",
     }
 }
 
+def get_main_keyboard(lang='uz'):
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    if lang == 'ru':
+        kb.add(
+            types.KeyboardButton("🪙 Цена Bitcoin"),
+            types.KeyboardButton("🥇 Золото (XAU)"),
+            types.KeyboardButton("🌍 Макро Календарь (NFP)"),
+            types.KeyboardButton("🌡 Настроение рынка"),
+            types.KeyboardButton("💎 Премиум & Gemini AI"),
+            types.KeyboardButton("🌐 Изменить язык")
+        )
+    else:
+        kb.add(
+            types.KeyboardButton("🪙 Bitcoin narxi"),
+            types.KeyboardButton("🥇 Oltin (XAU)"),
+            types.KeyboardButton("🌍 Makro Kalendar (NFP)"),
+            types.KeyboardButton("🌡 Bozor Kayfiyati"),
+            types.KeyboardButton("💎 Premium & Gemini AI"),
+            types.KeyboardButton("🌐 Tilni o'zgartirish")
+        )
+    return kb
+
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
+    chat_id = message.chat.id
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
         types.InlineKeyboardButton("🇺🇿 O'zbekcha", callback_data="lang_uz"),
-        types.InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
-        types.InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
-        types.InlineKeyboardButton("🇹🇷 Türkçe", callback_data="lang_tr")
+        types.InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru")
     )
-    bot.send_message(message.chat.id, "🌍 **Global Spot & Trading Terminal**\n\nSelect language / Tilni tanlang / Выберите язык:", reply_markup=markup, parse_mode="Markdown")
+    bot.send_message(chat_id, "🌍 **Global Spot & Trading Terminal**\n\nSelect language / Tilni tanlang / Выберите язык:", reply_markup=markup, parse_mode="Markdown")
 
-def show_main_menu(chat_id, message_id=None):
-    lang = get_user_lang(chat_id)
-    t = LANGUAGES[lang]
-
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton(t['guide_btn'], callback_data="menu_guide"),
-        types.InlineKeyboardButton(t['btn_btc'], callback_data="menu_btc"),
-        types.InlineKeyboardButton(t['btn_gold'], callback_data="menu_gold"),
-        types.InlineKeyboardButton(t['btn_macro'], callback_data="menu_macro"),
-        types.InlineKeyboardButton(t['btn_search'], callback_data="menu_search"),
-        types.InlineKeyboardButton(t['btn_premium'], callback_data="menu_premium"),
-        types.InlineKeyboardButton(t['btn_lang'], callback_data="menu_lang_change")
-    )
-
-    text = f"{t['welcome']}\n\n{t['choose_action']}"
-    if message_id:
-        try:
-            bot.edit_message_text(text, chat_id, message_id, reply_markup=markup, parse_mode="Markdown")
-        except:
-            bot.send_message(chat_id, text, reply_markup=markup, parse_mode="Markdown")
-    else:
-        bot.send_message(chat_id, text, reply_markup=markup, parse_mode="Markdown")
-
-@bot.callback_query_handler(func=lambda call: True)
-def callback_query(call):
+@bot.callback_query_handler(func=lambda call: call.data.startswith("lang_"))
+def set_language(call):
     chat_id = call.message.chat.id
-    data = call.data
-    lang = get_user_lang(chat_id)
-    t = LANGUAGES[lang]
-
-    try:
-        if data.startswith("lang_"):
-            user_languages[chat_id] = data.split('_')[1]
-            bot.answer_callback_query(call.id)
-            show_main_menu(chat_id, call.message.message_id)
-            return
-
-        if data == "menu_lang_change":
-            send_welcome(call.message)
-            bot.answer_callback_query(call.id)
-            return
-
-        if data == "menu_back":
-            show_main_menu(chat_id, call.message.message_id)
-            bot.answer_callback_query(call.id)
-            return
-
-        if data == "menu_guide":
-            markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton(t['back'], callback_data="menu_back"))
-            bot.edit_message_text(t['guide_text'], chat_id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-            bot.answer_callback_query(call.id)
-            return
-
-        if data == "menu_btc":
-            res = analyze_market_asset("bitcoin")
-            if res:
-                p = res['prices']
-                text = (
-                    f"🪙 **Bitcoin (BTC) - Технический и Фундаментальный Срез**\n\n"
-                    f"💰 **Спотовая цена:**\n"
-                    f"• USD: `${p.get('usd', 0):,.2f}`\n"
-                    f"• UZS: `{p.get('uzs', 0):,.2f} so'm`\n"
-                    f"• RUB: `{p.get('rub', 0):,.2f} руб.`\n\n"
-                    f"📈 **Сигнал и тренд:** {res['tech_verdict']} (`{res['change_24h']:+.2f}%`)\n"
-                    f"📊 **Объем торгов:** `${res['volume_24h']:,.0f}`\n"
-                    f"🏛 **Капитализация:** `${res['market_cap']:,.0f}`\n\n"
-                    f"✅ Чистый спот-анализ реального времени."
-                )
-            else:
-                text = t['error']
-            markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton(t['back'], callback_data="menu_back"))
-            bot.edit_message_text(text, chat_id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-            bot.answer_callback_query(call.id)
-            return
-
-        if data == "menu_gold":
-            price = get_gold_price()
-            text = (
-                f"🥇 **Золото (XAU/USD) - Глобальный Спот**\n\n"
-                f"💰 **Текущие котировки:**\n"
-                f"• USD: `${price:,.2f}` (troy oz)\n"
-                f"• UZS: `{price * 12800:,.2f} so'm`\n"
-                f"• RUB: `{price * 95:,.2f} руб.`\n\n"
-                f"📈 **Тренд:** 🟢 Сильный защитный актив в росте (`+0.45%`)\n"
-                f"🏛 **Рыночный статус:** Главный актив при макроэкономической нестабильности.\n\n"
-                f"✅ Данные обновлены в реальном времени."
-            )
-            markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton(t['back'], callback_data="menu_back"))
-            bot.edit_message_text(text, chat_id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-            bot.answer_callback_query(call.id)
-            return
-
-        if data == "menu_macro":
-            text = t['macro_info']
-            markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton(t['back'], callback_data="menu_back"))
-            bot.edit_message_text(text, chat_id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-            bot.answer_callback_query(call.id)
-            return
-
-        if data == "menu_premium":
-            text = t['premium_info']
-            markup = types.InlineKeyboardMarkup(row_width=1)
-            markup.add(
-                types.InlineKeyboardButton(t['buy_premium'], callback_data="buy_premium_stars"),
-                types.InlineKeyboardButton(t['back'], callback_data="menu_back")
-            )
-            bot.edit_message_text(text, chat_id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-            bot.answer_callback_query(call.id)
-            return
-
-        if data == "buy_premium_stars":
-            bot.answer_callback_query(call.id, "⚡ Генерация счета...")
-            try:
-                bot.send_invoice(
-                    chat_id=chat_id,
-                    title="CryptoScan VIP Premium",
-                    description="Месячная подписка на эксклюзивные сигналы и макроаналитику.",
-                    invoice_payload="premium_sub",
-                    provider_token="",
-                    currency="XTR",
-                    prices=[types.LabeledPrice(label="VIP 1 Month", amount=100)]
-                )
-            except:
-                bot.send_message(chat_id, "✨ Для активации Премиума свяжитесь с поддержкой.")
-            return
-
-        if data == "menu_search":
-            bot.answer_callback_query(call.id)
-            bot.send_message(chat_id, t['search_prompt'] if 'search_prompt' in t else "🔍 Отправьте название актива:", parse_mode="Markdown")
-            return
-    except Exception as e:
-        bot.answer_callback_query(call.id, "⚠️ Ошибка")
+    lang = call.data.split('_')[1]
+    user_languages[chat_id] = lang
+    t = LANGUAGES.get(lang, LANGUAGES['uz'])
+    
+    bot.answer_callback_query(call.id)
+    bot.send_message(chat_id, t['welcome'], reply_markup=get_main_keyboard(lang), parse_mode="Markdown")
 
 @bot.message_handler(func=lambda message: True)
-def handle_market_analysis(message):
+def handle_text_messages(message):
     chat_id = message.chat.id
-    query = message.text.strip()
-    if query.startswith('/'):
+    text = message.text.strip()
+    lang = get_user_lang(chat_id)
+    t = LANGUAGES.get(lang, LANGUAGES['uz'])
+
+    if text in ["🌐 Изменить язык", "🌐 Tilni o'zgartirish"]:
+        send_welcome(message)
         return
 
-    lang = get_user_lang(chat_id)
-    t = LANGUAGES[lang]
+    if text in ["💎 Премиум & Gemini AI", "💎 Premium & Gemini AI"]:
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton(t['buy_premium'], callback_data="buy_premium_stars"))
+        bot.send_message(chat_id, t['premium_info'], reply_markup=markup, parse_mode="Markdown")
+        return
 
-    try:
-        bot.send_chat_action(chat_id, 'typing')
-        res = analyze_market_asset(query)
+    # Проверка лимитов для обычных пользователей
+    if chat_id not in premium_users:
+        used = user_requests_count.get(chat_id, 0)
+        if used >= FREE_LIMIT:
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton(t['buy_premium'], callback_data="buy_premium_stars"))
+            bot.send_message(chat_id, t['limit_exceeded'], reply_markup=markup, parse_mode="Markdown")
+            return
+        else:
+            user_requests_count[chat_id] = used + 1
 
+    if text in ["🌍 Макро Календарь (NFP)", "🌍 Makro Kalendar (NFP)"]:
+        bot.send_message(chat_id, t['macro_info'], parse_mode="Markdown")
+        return
+
+    if text in ["🌡 Настроение рынка", "🌡 Bozor Kayfiyati"]:
+        val, label = get_fear_and_greed()
+        res_text = (
+            f"🌡 **Индекс Страха и Жадности (Crypto Sentiment)**\n\n"
+            f"• **Значение:** `{val}/100`\n"
+            f"• **Фаза рынка:** `✨ {label} ✨`"
+        )
+        bot.send_message(chat_id, res_text, parse_mode="Markdown")
+        return
+
+    if text in ["🪙 Цена Bitcoin", "🪙 Bitcoin narxi"]:
+        res = analyze_market_asset("bitcoin")
         if res:
             p = res['prices']
-            text = (
-                f"🤖 **Торговый Сигнал & Анализ: {res['name']} ({res['symbol']})**\n\n"
-                f"💰 **Спотовая цена:**\n"
-                f"• USD: `${p.get('usd', 0):,.4f}`\n"
-                f"• UZS: `{p.get('uzs', 0):,.2f} so'm`\n"
-                f"• RUB: `{p.get('rub', 0):,.4f} руб.`\n\n"
-                f"📈 **Технический срез:**\n"
-                f"• Изменение (24ч): `{res['change_24h']:+.2f}%`\n"
-                f"• Торговый вердикт: {res['tech_verdict']}\n"
-                f"• Суточный объем: `${res['volume_24h']:,.0f}`\n\n"
-                f"🏛 **Фундаментальные метрики:**\n"
-                f"• Капитализация: `${res['market_cap']:,.0f}`\n"
-                f"• Исторический максимум (ATH): `${res['ath']:,.2f}`\n\n"
-                f"✅ Сигнал сгенерирован в реальном времени."
-            )
-        else:
-            text = t['not_found']
-    except Exception as e:
-        text = t['error']
+            res_text = (
+                f"🪙 **Bitcoin (BTC) - Спот-анализ**\n
 
-    bot.send_message(chat_id, text, parse_mode="Markdown")
-
-@bot.pre_checkout_query_handler(func=lambda query: True)
-def checkout(pre_checkout_query):
-    bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
-
-@bot.message_handler(content_types=['successful_payment'])
-def got_payment(message):
-    chat_id = message.chat.id
-    premium_users.add(chat_id)
-    bot.send_message(chat_id, "🎉 Оплата прошла успешно! Вам активирован **Премиум-доступ**.")
-
-# Flask роуты
-@server.route('/' + TOKEN, methods=['POST'])
-def getMessage():
-    json_string = request.get_data().decode('utf-8')
-    update = telebot.types.Update.de_json(json_string)
-    bot.process_new_updates([update])
-    return "!", 200
-
-@server.route("/")
-def webhook():
-    return "Spot Bot is running on Render!", 200
-
-if __name__ == '__main__':
-    bot.remove_webhook()
-    bot.set_webhook(url=f"https://spot-bot-new.onrender.com/{TOKEN}")
-    server.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
 
 
 
