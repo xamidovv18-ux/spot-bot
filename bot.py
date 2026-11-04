@@ -3,7 +3,7 @@ import os
 import telebot
 from telebot import types
 import requests
-from Flask import Flask, request
+from flask import Flask, request
 
 # Инициализация бота и Flask
 TOKEN = "9223957380:AAekwjCuZcLfVxK0HM87HHyNZZ73Mx17mYw"
@@ -12,7 +12,7 @@ server = Flask(__name__)
 
 premium_users = set()
 
-# Главное меню с кнопкой Trader AI & Premium
+# Главное меню терминала
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
@@ -22,22 +22,47 @@ def get_main_keyboard():
         types.KeyboardButton("📅 Экономический календарь"),
         types.KeyboardButton("📊 Аналитика & Новости"),
         types.KeyboardButton("💎 Премиум & Trader AI"),
+        types.KeyboardButton("📖 Инструкция для новичков"),
         types.KeyboardButton("🌐 Изменить язык / Change Language")
     )
     return markup
 
+# Команда /start с полным описанием бота для новичков
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     chat_id = message.chat.id
     welcome_text = (
-        "🌟 **Global Spot & Forex Terminal**\n\n"
-        "• 🌐 **Криптовалюта & Форекс:** Тысячи монет и пар в реальном времени.\n"
-        "• 🪙 **Конвертер & Поиск:** Просто напишите название монеты (например, `BTC`, `ETH`) или валютной пары (`EURUSD`, `XAUUSD`) в чат!\n"
-        "• 📊 **Источники данных:** Интегрированы прямые порталы **Investing.com** и **ForexFactory**.\n"
-        "• 💎 **Trader AI (Gemini):** Ваш персональный аналитик.\n\n"
-        "👇 Используйте меню ниже для навигации:"
+        "🌟 **Добро пожаловать в Global Spot & Forex Terminal!** 🚀\n\n"
+        "🤖 **Что это за бот?**\n"
+        "Это твой персональный профессиональный мультирыночный терминал в Telegram. Он создан для трейдеров, инвесторов и новичков, чтобы в один клик отслеживать рынки, конвертировать валюты и получать аналитику.\n\n"
+        "📌 **Основные возможности:**\n"
+        "• 🌐 **Криптовалюта & Спот:** Котировки тысяч монет в реальном времени.\n"
+        "• 💱 **Форекс & Металлы:** Валютные пары (EUR/USD, GBP/USD и др.), золото (XAU) и нефть.\n"
+        "• 🪙 **Универсальный конвертер:** Просто напиши в чат название любого актива (например, `ETH`, `SOL`, `EURUSD`) — и бот мгновенно покажет курс в **USD, UZS и RUB**!\n"
+        "• 📅 **Фундаментальный анализ:** Прямые ссылки на ведущие порталы *Investing.com* и *ForexFactory*.\n"
+        "• 💎 **Trader AI (Gemini):** Искусственный интеллект для прогнозирования трендов и ответов на вопросы по трейдингу.\n\n"
+        "👇 *Используй кнопки меню внизу для навигации:*"
     )
     bot.send_message(chat_id, welcome_text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+
+# Кнопка: Инструкция для новичков
+@bot.message_handler(func=lambda message: message.text == "📖 Инструкция для новичков")
+def beginner_guide(message):
+    chat_id = message.chat.id
+    guide_text = (
+        "📖 **Гид по использованию терминала для начинающих:**\n\n"
+        "1️⃣ **Как узнать цену монеты или валюты?**\n"
+        "• Нажми на готовые кнопки в меню (например, «🪙 Bitcoin / Крипта» или «🥇 Золото»).\n"
+        "• Либо просто **напиши текст в чат** (например: `ETH`, `BNB`, `GBPUSD`) — бот сам распознает актив и выдаст котировки.\n\n"
+        "2️⃣ **Как пользоваться конвертером?**\n"
+        "Любое текстовое сообщение с тикером автоматически пересчитывает стоимость актива в доллары ($), узбекские сумы (so'м) и рубли (руб.).\n\n"
+        "3️⃣ **Где смотреть новости и календарь?**\n"
+        "Используй разделы «📅 Экономический календарь» и «📊 Аналитика & Новости» для перехода на Investing.com и ForexFactory.\n\n"
+        "4️⃣ **Как подключить Trader AI?**\n"
+        "Нажми кнопку «💎 Премиум & Trader AI», чтобы активировать безлимитный доступ и задать вопрос искусственному интеллекту.\n\n"
+        "💡 *Удачи в торговле! Если появятся вопросы, просто напиши их в чат.*"
+    )
+    bot.send_message(chat_id, guide_text, parse_mode="Markdown")
 
 # Обработка выбора языков
 @bot.message_handler(func=lambda message: message.text in ["🌐 Изменить язык / Change Language", "🌐 Tilni tansh / O'zbekcha"])
@@ -57,7 +82,7 @@ def lang_callback(call):
     bot.answer_callback_query(call.id, text=f"Language set to {lang}")
     bot.send_message(call.message.chat.id, f"✅ Язык успешно изменен на **{lang}**.", parse_mode="Markdown", reply_markup=get_main_keyboard())
 
-# Кнопка: Экономический календарь с сылками на ForexFactory и Investing.com
+# Кнопка: Экономический календарь
 @bot.message_handler(func=lambda message: message.text == "📅 Экономический календарь")
 def economic_calendar(message):
     chat_id = message.chat.id
@@ -72,7 +97,7 @@ def economic_calendar(message):
     )
     bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
 
-# Кнопка: Аналитика и обзоры рынков
+# Кнопка: Аналитика и новости
 @bot.message_handler(func=lambda message: message.text == "📊 Аналитика & Новости")
 def market_analytics(message):
     chat_id = message.chat.id
@@ -87,7 +112,7 @@ def market_analytics(message):
     )
     bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
 
-# Обработчик кнопки Trader AI & Premium
+# Кнопка: Trader AI & Premium
 @bot.message_handler(func=lambda message: message.text == "💎 Премиум & Trader AI")
 def premium_trader_ai(message):
     chat_id = message.chat.id
@@ -124,7 +149,7 @@ def ask_ai_callback(call):
         parse_mode="Markdown"
     )
 
-# Обработчик кнопки Bitcoin
+# Кнопка: Bitcoin / Крипта
 @bot.message_handler(func=lambda message: message.text == "🪙 Bitcoin / Крипта")
 def crypto_bitcoin(message):
     chat_id = message.chat.id
@@ -157,7 +182,7 @@ def handle_universal_search(message):
     menu_buttons = [
         "🪙 BITCOIN / КРИПТА", "🥇 ЗОЛОТО (XAU)", "💱 ФОРЕКС (EUR/USD)", 
         "📅 ЭКОНОМИЧЕСКИЙ КАЛЕНДАРЬ", "📊 АНАЛИТИКА & НОВОСТИ", "💎 ПРЕМИУМ & TRADER AI", 
-        "🌐 ИЗМЕНИТЬ ЯЗЫК / CHANGE LANGUAGE"
+        "📖 ИНСТРУКЦИЯ ДЛЯ НОВИЧКОВ", "🌐 ИЗМЕНИТЬ ЯЗЫК / CHANGE LANGUAGE"
     ]
     if text in menu_buttons or text.startswith('/'):
         return
@@ -230,6 +255,7 @@ if __name__ == '__main__':
     bot.remove_webhook()
     bot.set_webhook(url=f"https://spot-bot-new.onrender.com/{TOKEN}")
     server.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
+
 
 
 
