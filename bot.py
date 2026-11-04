@@ -6,8 +6,8 @@ import requests
 from flask import Flask, request
 import google.generativeai as genai
 
-# Инициализация бота и Flask
-TOKEN = "9223957380:AAekwjCuZcLfVxK0HM87HHyNZZ73Mx17mYw"
+# Инициализация бота с новым токеном и Flask
+TOKEN = "9223957380:AAFJ-YtREgHozAVaU-s-9I37ZHvQQGQnCFM"
 bot = telebot.TeleBot(TOKEN)
 server = Flask(__name__)
 
@@ -15,7 +15,6 @@ server = Flask(__name__)
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
-    # Используем стабильную модель Gemini
     gemini_model = genai.GenerativeModel("gemini-1.5-flash")
 else:
     gemini_model = None
@@ -198,7 +197,7 @@ def handle_text_messages(message):
     if text in menu_buttons or text.startswith('/'):
         return
 
-    # Сначала проверяем, является ли запрос тикером крипты или форекса (длина обычно до 10 символов и без пробелов)
+    # Проверяем, является ли запрос тикером крипты или форекса
     if len(original_text.split()) == 1 and len(text) <= 10:
         sent_msg = bot.send_message(chat_id, f"🔍 Ищу котировки и анализирую актив: `{text}`...", parse_mode="Markdown")
         try:
@@ -249,9 +248,8 @@ def handle_text_messages(message):
                     return
         except Exception:
             pass
-        # Если тикер не найден на бирже, передаем текст в Gemini AI ниже
 
-    # Если это развернутый вопрос или текст — отправляем в Trader AI (Gemini)
+    # Отправка текста в Trader AI (Gemini)
     if gemini_model:
         sent_ai = bot.send_message(chat_id, "🤖 **Trader AI анализирует ваш вопрос...**", parse_mode="Markdown")
         try:
@@ -269,7 +267,7 @@ def handle_text_messages(message):
                 f"💡 *Анализ подготовлен глобальным терминалом.*"
             )
             bot.edit_message_text(formatted_answer, chat_id=chat_id, message_id=sent_ai.message_id, parse_mode="Markdown")
-        except Exception as e:
+        except Exception:
             bot.edit_message_text("⚠️ Ошибка обращения к Trader AI. Попробуйте сформулировать вопрос иначе.", chat_id=chat_id, message_id=sent_ai.message_id)
     else:
         bot.send_message(chat_id, "⚠️ Trader AI временно недоступен (не настроен GEMINI_API_KEY на сервере).")
@@ -286,6 +284,7 @@ if __name__ == '__main__':
     bot.remove_webhook()
     bot.set_webhook(url=f"https://spot-bot-new.onrender.com/{TOKEN}")
     server.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
+
 
 
 
