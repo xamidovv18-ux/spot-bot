@@ -399,7 +399,7 @@ def webhook():
 
 if __name__ == "__main__":
     bot.remove_webhook()
-    bot.set_webhook(url=f"https://spot-bot-1.onrender.com/{TOKEN}")
+    bot.set_webhook(url=f"https://spot-bot-new.onrender.com/{TOKEN}")
     server.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
 
 
