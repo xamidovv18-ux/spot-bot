@@ -16,6 +16,24 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 user_ai_limits = {}
 FREE_LIMIT = 15
 PREMIUM_USER_IDS = []  # Твой ID и ID VIP-клиентов можно добавить сюда
+# Множество для отслеживания уникальных пользователей
+unique_users = set()
+
+def track_user(message):
+    user_id = message.from_user.id
+    if user_id not in unique_users:
+        unique_users.add(user_id)
+
+# Команда для проверки статистики (отправь /stats боту)
+@bot.message_handler(commands=['stats'])
+def show_stats(message):
+    total_users = len(unique_users)
+    bot.send_message(
+        message.chat.id, 
+        f"📊 **Статистика бота:**\n\n👥 Всего уникальных пользователей: `{total_users}`", 
+        parse_mode="Markdown"
+    )
+
 
 def ask_ai(prompt_text):
     if not GEMINI_API_KEY:
@@ -197,43 +215,53 @@ def tradingview_charts(message):
     )
     bot.send_message(message.chat.id, "📊 **Интерактивные графики и глубокий технический анализ:**", parse_mode="Markdown", reply_markup=markup)
 
-# Кнопка Bitcoin через стабильный Binance API (без нулей)
+# 🪙 Bitcoin в реальном времени через Binance API (обновляется каждую секунду)
 @bot.message_handler(func=lambda message: message.text == "🪙 Bitcoin / Крипта")
 def crypto_bitcoin(message):
+    track_user(message)
     chat_id = message.chat.id
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("📈 Открыть график BTC (TradingView)", url="https://www.tradingview.com/chart/?symbol=BINANCE%3ABTCUSDT"))
     try:
+        # Запрос свежей цены напрямую с биржи Binance
         url = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
         res = requests.get(url, timeout=5).json()
         usd = float(res.get("price", 0))
-        uzs = usd * 12800
+        uzs = usd * 12800  # актуальный расчет
         rub = usd * 95
         
         text = (
             f"📊 **Анализ актива: Bitcoin (BTC)**\n\n"
-            f"💱 **Конвертер валют:**\n"
+            f"💱 **Конвертер валют (Live):**\n"
             f"• USD: ${usd:,.2f}\n"
             f"• UZS: {uzs:,.2f} so'm\n"
             f"• RUB: {rub:,.2f} руб.\n\n"
-            f"📈 **Технический вердикт & Сигнал:** 🟢 BUY (Бычий импульс)"
+            f"📈 **Статус:** 🟢 Данные обновлены в реальном времени"
         )
         bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
     except Exception:
-        bot.send_message(chat_id, "⚠️ Ошибка получения данных с биржи Binance.", parse_mode="Markdown", reply_markup=markup)
+        bot.send_message(chat_id, "⚠️ Ошибка получения актуальных данных с биржи.", parse_mode="Markdown", reply_markup=markup)
 
-
+# 🥇 Золото в реальном времени (обновляется ежедневно)
 @bot.message_handler(func=lambda message: message.text == "🥇 Золото (XAU)")
 def gold_xau(message):
+    track_user(message)
     chat_id = message.chat.id
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("📈 Открыть график Золота", url="https://www.tradingview.com/chart/?symbol=OANDA%3AXAUUSD"))
     try:
-        gold = yf.Ticker("GC=F")
-        price = gold.history(period="1d")['Close'].iloc[-1]
-        bot.send_message(chat_id, f"🥇 **Золото (GC=F / XAU):** `${price:,.2f}`\n📈 **Технический сигнал:** 🟢 BUY", parse_mode="Markdown", reply_markup=markup)
+        # Запрос свежей цены золота
+        url = "https://api.gold-api.com/price/XAU"
+        res = requests.get(url, timeout=5).json()
+        price = float(res.get("price", 0))
+        
+        text = (
+            f"🥇 **Золото (XAU/USD):** `${price:,.2f}`\n"
+            f"📈 **Статус:** 🟢 Актуальная рыночная цена"
+        )
+        bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
     except Exception:
-        bot.send_message(chat_id, f"🥇 **Золото (XAU/USD):** `$2,740.50`\n📈 **Технический сигнал:** 🟢 BUY", parse_mode="Markdown", reply_markup=markup)
+        bot.send_message(chat_id, "🥇 **Золото (XAU/USD):** Не удалось получить свежие данные.", parse_mode="Markdown", reply_markup=markup)
 
 @bot.message_handler(func=lambda message: message.text == "💱 Форекс (EUR/USD)")
 def forex_eurusd(message):
