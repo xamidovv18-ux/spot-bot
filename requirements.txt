@@ -1,7 +1,8 @@
-
 pyTelegramBotAPI
 requests
 flask
 google-generativeai
+yfinance
+
 
 
