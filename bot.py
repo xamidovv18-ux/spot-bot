@@ -13,13 +13,8 @@ server = Flask(__name__)
 
 # Настройка Gemini AI
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-gemini_model = None
-if GEMINI_API_KEY and not GEMINI_API_KEY.startswith("http") and len(GEMINI_API_KEY) > 20:
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        gemini_model = genai.GenerativeModel("gemini-1.5-flash")
-    except Exception as e:
-        print(f"Ошибка инициализации Gemini: {e}")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 # Главное расширенное меню терминала
 def get_main_keyboard():
@@ -321,17 +316,19 @@ def handle_text_messages(message):
             pass
         return
 
-    # 3. Обращение к Trader AI (Gemini) с выводом точной ошибки
-    if gemini_model:
+    # 3. Обращение к Trader AI (Gemini) с защищенным вызовом модели
+    if GEMINI_API_KEY:
         sent_ai = bot.send_message(chat_id, "🤖 **Trader AI анализирует ваш запрос...**", parse_mode="Markdown")
         try:
+            # Создаем модель прямо в момент запроса с надежным стандартом
+            model = genai.GenerativeModel("gemini-1.5-flash")
             prompt = f"Ты — профессиональный финансовый аналитик и трейдер. Дай экспертный ответ на вопрос пользователя: {original_text}"
-            response = gemini_model.generate_content(prompt)
+            response = model.generate_content(prompt)
             bot.edit_message_text(f"🤖 **Trader AI (Экспертный анализ):**\n\n{response.text}", chat_id=chat_id, message_id=sent_ai.message_id, parse_mode="Markdown")
         except Exception as e:
-            bot.edit_message_text(f"⚠️ Ошибка Gemini: `{str(e)}`", chat_id=chat_id, message_id=sent_ai.message_id)
+            bot.edit_message_text(f"⚠️ Ошибка Gemini AI: `{str(e)}`", chat_id=chat_id, message_id=sent_ai.message_id)
     else:
-        bot.send_message(chat_id, "⚠️ Trader AI не инициализирован. Проверьте переменную `GEMINI_API_KEY` в Render.")
+        bot.send_message(chat_id, "⚠️ Переменная `GEMINI_API_KEY` не обнаружена в окружении Render.")
 
 # Вебхук
 @server.route(f'/{TOKEN}', methods=['POST'])
@@ -345,6 +342,7 @@ if __name__ == '__main__':
     bot.remove_webhook()
     bot.set_webhook(url=f"https://spot-bot-new.onrender.com/{TOKEN}")
     server.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
+
 
 
 
