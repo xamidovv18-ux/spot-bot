@@ -19,20 +19,39 @@ PREMIUM_USER_IDS = []  # Твой ID и ID VIP-клиентов можно до�
 # Множество для отслеживания уникальных пользователей
 unique_users = set()
 
+# Словарь для сохранения полной информации о пользователях
+tracked_users = {}
+
 def track_user(message):
     user_id = message.from_user.id
-    if user_id not in unique_users:
-        unique_users.add(user_id)
+    name = message.from_user.first_name or "Без имени"
+    username = f"@{message.from_user.username}" if message.from_user.username else "нет username"
+    
+    # Сохраняем данные пользователя
+    tracked_users[user_id] = f"👤 {name} ({username}) — `ID: {user_id}`"
 
-# Команда для проверки статистики (отправь /stats боту)
+# Улучшенная команда /stats со списком всех пользователей
 @bot.message_handler(commands=['stats'])
 def show_stats(message):
-    total_users = len(unique_users)
-    bot.send_message(
-        message.chat.id, 
-        f"📊 **Статистика бота:**\n\n👥 Всего уникальных пользователей: `{total_users}`", 
-        parse_mode="Markdown"
+    total_users = len(tracked_users)
+    
+    if total_users > 0:
+        # Собираем всех пользователей в один список
+        users_list_str = "\n".join(tracked_users.values())
+    else:
+        users_list_str = "Пока нет активных пользователей."
+    
+    # Если пользователей станет очень много, обрежем текст, чтобы Telegram не выдал ошибку
+    if len(users_list_str) > 3500:
+        users_list_str = users_list_str[:3500] + "\n\n... и другие пользователи."
+
+    stats_text = (
+        f"📊 **Статистика бота:**\n\n"
+        f"👥 Всего уникальных пользователей: `{total_users}`\n\n"
+        f"📜 **Список пользователей:**\n{users_list_str}"
     )
+    bot.send_message(message.chat.id, stats_text, parse_mode="Markdown")
+
 
 
 def ask_ai(prompt_text):
