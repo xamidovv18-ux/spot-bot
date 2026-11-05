@@ -197,7 +197,7 @@ def tradingview_charts(message):
     )
     bot.send_message(message.chat.id, "📊 **Интерактивные графики и глубокий технический анализ:**", parse_mode="Markdown", reply_markup=markup)
 
-# Биткоин через Binance (без нулей)
+# Кнопка Bitcoin через стабильный Binance API (без нулей)
 @bot.message_handler(func=lambda message: message.text == "🪙 Bitcoin / Крипта")
 def crypto_bitcoin(message):
     chat_id = message.chat.id
@@ -220,7 +220,8 @@ def crypto_bitcoin(message):
         )
         bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
     except Exception:
-        bot.send_message(chat_id, "⚠️ Ошибка получения данных с биржи Binance.", reply_markup=markup)
+        bot.send_message(chat_id, "⚠️ Ошибка получения данных с биржи Binance.", parse_mode="Markdown", reply_markup=markup)
+
 
 @bot.message_handler(func=lambda message: message.text == "🥇 Золото (XAU)")
 def gold_xau(message):
