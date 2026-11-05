@@ -4,17 +4,37 @@ from telebot import types
 import requests
 import yfinance as yf
 from flask import Flask, request
-import google.generativeai as genai
 
 # Инициализация бота и Flask
 TOKEN = "9223957380:AAFJ-YtREgHozAVaU-s-9I37ZHvQQGQnCFM"
 bot = telebot.TeleBot(TOKEN)
 server = Flask(__name__)
 
-# Настройка Gemini AI
+# Получаем ключ Gemini API из переменных окружения Render
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
+
+# Функция прямого обращения к бесплатнаму Gemini API (без ошибок библиотек)
+def ask_gemini_ai(prompt_text):
+    if not GEMINI_API_KEY:
+        return "⚠️ Ошибка: Переменная GEMINI_API_KEY не найдена в настройках Render."
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{
+            "parts": [{"text": f"Ты — профессиональный финансовый аналитик и трейдер. Дай экспертный ответ на вопрос: {prompt_text}"}]
+        }]
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        res_json = response.json()
+        
+        # Достаем текст ответа от ИИ
+        answer = res_json["candidates"][0]["content"]["parts"][0]["text"]
+        return answer
+    except Exception as e:
+        return f"⚠️ Ошибка связи с Trader AI: {str(e)}"
 
 # Главное расширенное меню терминала
 def get_main_keyboard():
@@ -154,7 +174,7 @@ def ask_ai_info_callback(call):
     bot.answer_callback_query(call.id)
     bot.send_message(call.message.chat.id, "🤖 Просто напишите свой вопрос в чат (например: *«Прогноз по акциям Apple на эту неделю»*), и искусственный интеллект выдаст подробный экспертный разбор.", parse_mode="Markdown")
 
-# Кнопка Bitcoin
+# Кнопка Bitcoin (с исправленным живым курсом USD, UZS, RUB)
 @bot.message_handler(func=lambda message: message.text == "🪙 Bitcoin / Крипта")
 def crypto_bitcoin(message):
     chat_id = message.chat.id
@@ -167,6 +187,7 @@ def crypto_bitcoin(message):
         usd = data.get("usd", 0)
         uzs = data.get("uzs", 0)
         rub = data.get("rub", 0)
+        
         text = (
             f"📊 **Анализ актива: Bitcoin (BTC)**\n\n"
             f"💵 **Конвертер валют:**\n"
@@ -230,7 +251,7 @@ def stocks_menu(message):
         parse_mode="Markdown", reply_markup=markup
     )
 
-# Универсальный обработчик текста
+# Универсальный обработчик текста (активы + конвертер + Trader AI)
 @bot.message_handler(func=lambda message: True)
 def handle_text_messages(message):
     text = message.text.strip().upper()
@@ -246,7 +267,7 @@ def handle_text_messages(message):
     if text in menu_buttons or text.startswith('/'):
         return
 
-    # 1. Поиск активов через Yahoo Finance
+    # 1. Поиск активов через Yahoo Finance (акции, форекс, сырье)
     if len(original_text.split()) == 1 and len(text) <= 6:
         sent_msg = bot.send_message(chat_id, f"🔍 Ищу актив `{text}` на мировых биржах...", parse_mode="Markdown")
         try:
@@ -280,7 +301,7 @@ def handle_text_messages(message):
         except Exception:
             pass
 
-        # 2. Поиск через CoinGecko с конвертером
+        # 2. Поиск через CoinGecko с конвертером в USD, UZS, RUB
         try:
             search_url = f"https://api.coingecko.com/api/v3/search?query={text.lower()}"
             res = requests.get(search_url, timeout=5).json()
@@ -323,23 +344,13 @@ def handle_text_messages(message):
             pass
         return
 
-    # 3. Обращение к Trader AI (Gemini)
-    if GEMINI_API_KEY:
-        sent_ai = bot.send_message(chat_id, "🤖 **Trader AI анализирует ваш запрос...**", parse_mode="Markdown")
-        try:
-            model = genai.GenerativeModel("gemini-1.5-flash")
-            prompt = f"Ты — профессиональный финансовый аналитик и трейдер. Дай экспертный ответ на вопрос пользователя: {original_text}"
-            response = model.generate_content(prompt)
-            bot.edit_message_text(f"🤖 **Trader AI (Экспертный анализ):**\n\n{response.text}", chat_id=chat_id, message_id=sent_ai.message_id, parse_mode="Markdown")
-        except Exception as e:
-            try:
-                model_fallback = genai.GenerativeModel("gemini-pro")
-                response = model_fallback.generate_content(prompt)
-                bot.edit_message_text(f"🤖 **Trader AI (Экспертный анализ):**\n\n{response.text}", chat_id=chat_id, message_id=sent_ai.message_id, parse_mode="Markdown")
-            except Exception as err:
-                bot.edit_message_text(f"⚠️ Ошибка Gemini AI: `{str(err)}`", chat_id=chat_id, message_id=sent_ai.message_id)
-    else:
-        bot.send_message(chat_id, "⚠️ Переменная `GEMINI_API_KEY` не обнаружена в окружении Render.")
+    # 3. Обращение к Trader AI через прямой безопасный запрос
+    sent_ai = bot.send_message(chat_id, "🤖 **Trader AI анализирует ваш запрос...**", parse_mode="Markdown")
+    ai_response = ask_gemini_ai(original_text)
+    try:
+        bot.edit_message_text(f"🤖 **Trader AI (Экспертный анализ):**\n\n{ai_response}", chat_id=chat_id, message_id=sent_ai.message_id, parse_mode="Markdown")
+    except Exception:
+        bot.send_message(chat_id, f"🤖 **Trader AI:**\n\n{ai_response}", parse_mode="Markdown")
 
 # Вебхук
 @server.route(f'/{TOKEN}', methods=['POST'])
@@ -353,6 +364,7 @@ if __name__ == '__main__':
     bot.remove_webhook()
     bot.set_webhook(url=f"https://spot-bot-new.onrender.com/{TOKEN}")
     server.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
+
 
 
 
