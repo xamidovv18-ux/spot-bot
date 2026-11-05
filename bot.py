@@ -4,39 +4,16 @@ from telebot import types
 import requests
 import yfinance as yf
 from flask import Flask, request
+import google.generativeai as genai
 
-# Инициализация бота и Flask
 TOKEN = "9223957380:AAFJ-YtREgHozAVaU-s-9I37ZHvQQGQnCFM"
 bot = telebot.TeleBot(TOKEN)
 server = Flask(__name__)
 
-# Получаем ключ Gemini API из переменных окружения Render
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
-# Функция прямого обращения к бесплатнаму Gemini API (без ошибок библиотек)
-def ask_gemini_ai(prompt_text):
-    if not GEMINI_API_KEY:
-        return "⚠️ Ошибка: Переменная GEMINI_API_KEY не найдена в настройках Render."
-    
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "contents": [{
-            "parts": [{"text": f"Ты — профессиональный финансовый аналитик и трейдер. Дай экспертный ответ на вопрос: {prompt_text}"}]
-        }]
-    }
-    
-    try:
-        response = requests.post(url, headers=headers, json=payload, timeout=10)
-        res_json = response.json()
-        
-        # Достаем текст ответа от ИИ
-        answer = res_json["candidates"][0]["content"]["parts"][0]["text"]
-        return answer
-    except Exception as e:
-        return f"⚠️ Ошибка связи с Trader AI: {str(e)}"
-
-# Главное расширенное меню терминала
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
@@ -53,7 +30,6 @@ def get_main_keyboard():
     )
     return markup
 
-# Команда /start
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     chat_id = message.chat.id
@@ -71,7 +47,6 @@ def send_welcome(message):
     )
     bot.send_message(chat_id, welcome_text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
-# Кнопка графиков TradingView в меню
 @bot.message_handler(func=lambda message: message.text == "📊 Графики (TradingView)")
 def tradingview_charts(message):
     chat_id = message.chat.id
@@ -80,32 +55,19 @@ def tradingview_charts(message):
         types.InlineKeyboardButton("📈 Открыть TradingView (Графики)", url="https://www.tradingview.com/chart/"),
         types.InlineKeyboardButton("🪙 Криптографики (CoinGecko)", url="https://www.coingecko.com/")
     )
-    bot.send_message(
-        chat_id,
-        "📊 **Интерактивные графики и технический анализ:**\n\n"
-        "Нажмите кнопку ниже, чтобы открыть профессиональные живые графики в реальном времени:",
-        parse_mode="Markdown",
-        reply_markup=markup
-    )
+    bot.send_message(chat_id, "📊 **Интерактивные графики и технический анализ:**", parse_mode="Markdown", reply_markup=markup)
 
-# Подробная инструкция
 @bot.message_handler(func=lambda message: message.text == "📖 Инструкция для новичков")
 def beginner_guide(message):
     chat_id = message.chat.id
     guide_text = (
         "📖 **Пошаговая инструкция по использованию терминала:**\n\n"
-        "1️⃣ **Поиск любого актива со всего мира:**\n"
-        "• Отправьте в чат тикер акции (`AAPL`, `TSLA`), крипты (`BTC`, `ETH`) или форекса (`EURUSD`, `GC=F`).\n"
-        "2️⃣ **Универсальный конвертер валют:**\n"
-        "• Бот автоматически пересчитывает стоимость активов в **USD, UZS и RUB**.\n"
-        "3️⃣ **Интерактивные графики:**\n"
-        "• К каждому найденному активу прикрепляется прямая кнопка на TradingView.\n"
-        "4️⃣ **Trader AI (Gemini):**\n"
-        "• Задавайте любые вопросы по трейдингу простым текстом в чат и получайте экспертный разбор."
+        "1️⃣ **Поиск любого актива со всего мира:** Отправьте тикер (`AAPL`, `BTC`, `EURUSD`).\n"
+        "2️⃣ **Конвертер валют:** Автоматический пересчет в USD, UZS и RUB.\n"
+        "3️⃣ **Trader AI:** Задавайте вопросы по трейдингу в чат."
     )
     bot.send_message(chat_id, guide_text, parse_mode="Markdown")
 
-# Выбор языков
 @bot.message_handler(func=lambda message: message.text in ["🌐 Изменить язык / Change Language", "🌐 Tilni tansh / O'zbekcha"])
 def change_language(message):
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -115,143 +77,90 @@ def change_language(message):
         types.InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
         types.InlineKeyboardButton("🇹🇷 Türkçe", callback_data="lang_tr")
     )
-    bot.send_message(message.chat.id, "🌐 **Выберите язык / Select language / Dil seçin:**", parse_mode="Markdown", reply_markup=markup)
+    bot.send_message(message.chat.id, "🌐 **Выберите язык:**", parse_mode="Markdown", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("lang_"))
 def lang_callback(call):
     lang = call.data.split("_")[1].upper()
     bot.answer_callback_query(call.id, text=f"Language set to {lang}")
-    bot.send_message(call.message.chat.id, f"✅ Язык успешно изменен на **{lang}**.", parse_mode="Markdown", reply_markup=get_main_keyboard())
+    bot.send_message(call.message.chat.id, f"✅ Язык изменен на **{lang}**.", parse_mode="Markdown", reply_markup=get_main_keyboard())
 
-# Экономический календарь
 @bot.message_handler(func=lambda message: message.text == "📅 Экономический календарь")
 def economic_calendar(message):
-    chat_id = message.chat.id
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("📅 ForexFactory Calendar", url="https://www.forexfactory.com/calendar"),
-        types.InlineKeyboardButton("📈 Investing.com Economic Calendar", url="https://ru.investing.com/economic-calendar/")
-    )
-    bot.send_message(chat_id, "📅 **Экономический календарь и важные события:**", parse_mode="Markdown", reply_markup=markup)
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("📅 ForexFactory Calendar", url="https://www.forexfactory.com/calendar"))
+    bot.send_message(message.chat.id, "📅 **Экономический календарь:**", parse_mode="Markdown", reply_markup=markup)
 
-# Аналитика
 @bot.message_handler(func=lambda message: message.text == "📊 Аналитика & Новости")
 def market_analytics(message):
-    chat_id = message.chat.id
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        types.InlineKeyboardButton("🌐 Investing.com (Рынки)", url="https://ru.investing.com/"),
-        types.InlineKeyboardButton("📰 ForexFactory News", url="https://www.forexfactory.com/news")
-    )
-    bot.send_message(chat_id, "📊 **Глобальная аналитика и новости рынков:**", parse_mode="Markdown", reply_markup=markup)
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton("🌐 Investing.com", url="https://ru.investing.com/"))
+    bot.send_message(message.chat.id, "📊 **Аналитика рынков:**", parse_mode="Markdown", reply_markup=markup)
 
-# Премиум меню
 @bot.message_handler(func=lambda message: message.text == "💎 Премиум & VIP Сигналы")
 def premium_trader_ai(message):
-    chat_id = message.chat.id
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("💳 Купить 1 Месяц ($10)", url="https://t.me/samadkhon_khmdvv"),
-        types.InlineKeyboardButton("💎 Купить 1 Год ($100 - Выгода!)", url="https://t.me/samadkhon_khmdvv"),
-        types.InlineKeyboardButton("💬 Связаться с администратором", url="https://t.me/samadkhon_khmdvv"),
-        types.InlineKeyboardButton("🤖 Как спросить Trader AI?", callback_data="ask_ai_info")
+        types.InlineKeyboardButton("💎 Купить 1 Год ($100)", url="https://t.me/samadkhon_khmdvv"),
+        types.InlineKeyboardButton("💬 Связаться с администратором", url="https://t.me/samadkhon_khmdvv")
     )
-    text = (
-        "💎 **Премиум-доступ & VIP Терминал**\n\n"
-        "Получите максимальные возможности для успешного трейдинга:\n"
-        "• 🤖 **Безлимитный Trader AI** — глубокий анализ без ограничений.\n"
-        "• ⚡ **VIP Торговые Сигналы** — точные точки входа (Buy/Sell).\n"
-        "• 🔔 **Ценовые уведомления (Alerts)** — контроль важных уровней цен.\n\n"
-        "💳 **Тарифы:**\n"
-        "• 📅 **1 Месяц:** `$10`\n"
-        "• 📅 **1 Год:** `$100` *(Максимальная выгода!)*\n\n"
-        "👇 Выберите тариф или нажмите кнопку связи с администратором для быстрой активации:"
-    )
-    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
+    bot.send_message(message.chat.id, "💎 **Премиум-доступ & VIP Сигналы**", parse_mode="Markdown", reply_markup=markup)
 
-@bot.callback_query_handler(func=lambda call: call.data == "ask_ai_info")
-def ask_ai_info_callback(call):
-    bot.answer_callback_query(call.id)
-    bot.send_message(call.message.chat.id, "🤖 Просто напишите свой вопрос в чат (например: *«Прогноз по акциям Apple на эту неделю»*), и искусственный интеллект выдаст подробный экспертный разбор.", parse_mode="Markdown")
-
-# Кнопка Bitcoin (с исправленным живым курсом USD, UZS, RUB)
 @bot.message_handler(func=lambda message: message.text == "🪙 Bitcoin / Крипта")
 def crypto_bitcoin(message):
     chat_id = message.chat.id
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("📈 Открыть график BTC (TradingView)", url="https://www.tradingview.com/chart/?symbol=BINANCE%3ABTCUSDT"))
+    markup.add(types.InlineKeyboardButton("📈 График BTC", url="https://www.tradingview.com/chart/?symbol=BINANCE%3ABTCUSDT"))
     try:
         url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,uzs,rub"
-        response = requests.get(url, timeout=5).json()
-        data = response.get("bitcoin", {})
+        res = requests.get(url, timeout=5).json()
+        data = res.get("bitcoin", {})
         usd = data.get("usd", 0)
         uzs = data.get("uzs", 0)
         rub = data.get("rub", 0)
-        
         text = (
-            f"📊 **Анализ актива: Bitcoin (BTC)**\n\n"
-            f"💵 **Конвертер валют:**\n"
+            f"📊 **Bitcoin (BTC)**\n\n"
+            f"💵 **Конвертер:**\n"
             f"• USD: ${usd:,.2f}\n"
             f"• UZS: {uzs:,.2f} so'm\n"
             f"• RUB: {rub:,.2f} руб.\n\n"
-            f"📈 **Технический вердикт & Сигнал:** 🟢 BUY (Бычий импульс)"
+            f"📈 **Сигнал:** 🟢 BUY"
         )
         bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
     except Exception:
-        bot.send_message(chat_id, "⚠️ Ошибка получения данных с биржи.", reply_markup=markup)
+        bot.send_message(chat_id, "⚠️ Ошибка получения данных.", reply_markup=markup)
 
-# Кнопка Золото
 @bot.message_handler(func=lambda message: message.text == "🥇 Золото (XAU)")
 def gold_xau(message):
     chat_id = message.chat.id
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("📈 Открыть график Золота", url="https://www.tradingview.com/chart/?symbol=OANDA%3AXAUUSD"))
+    markup.add(types.InlineKeyboardButton("📈 График Золота", url="https://www.tradingview.com/chart/?symbol=OANDA%3AXAUUSD"))
     try:
         gold = yf.Ticker("GC=F")
         price = gold.history(period="1d")['Close'].iloc[-1]
-        bot.send_message(
-            chat_id,
-            f"🥇 **Анализ актива: Золото (GC=F / XAU)**\n\n"
-            f"💵 **Текущая котировка:** `${price:,.2f}`\n"
-            f"📊 **Технический вердикт & Сигнал:** 🟢 BUY",
-            parse_mode="Markdown", reply_markup=markup
-        )
+        bot.send_message(chat_id, f"🥇 **Золото (XAU):** `${price:,.2f}`\n📈 **Сигнал:** 🟢 BUY", parse_mode="Markdown", reply_markup=markup)
     except Exception:
         bot.send_message(chat_id, "🥇 **Золото (XAU/USD):** `$2,740.50`", parse_mode="Markdown", reply_markup=markup)
 
-# Кнопка Форекс
 @bot.message_handler(func=lambda message: message.text == "💱 Форекс (EUR/USD)")
 def forex_eurusd(message):
     chat_id = message.chat.id
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("📈 Открыть график EUR/USD", url="https://www.tradingview.com/chart/?symbol=FX_IDC%3AEURUSD"))
+    markup.add(types.InlineKeyboardButton("📈 График EUR/USD", url="https://www.tradingview.com/chart/?symbol=FX_IDC%3AEURUSD"))
     try:
         pair = yf.Ticker("EURUSD=X")
         price = pair.history(period="1d")['Close'].iloc[-1]
-        bot.send_message(
-            chat_id,
-            f"💱 **Форекс: EUR/USD**\n\n"
-            f"💵 **Текущий курс:** `{price:.4f}`\n"
-            f"📊 **Технический вердикт:** 🟡 NEUTRAL",
-            parse_mode="Markdown", reply_markup=markup
-        )
+        bot.send_message(chat_id, f"💱 **EUR/USD:** `{price:.4f}`\n📊 **Вердикт:** 🟡 NEUTRAL", parse_mode="Markdown", reply_markup=markup)
     except Exception:
         bot.send_message(chat_id, "💱 **EUR/USD:** `1.0850`", parse_mode="Markdown", reply_markup=markup)
 
-# Кнопка Акции
 @bot.message_handler(func=lambda message: message.text == "📈 Акции (AAPL / TSLA)")
 def stocks_menu(message):
-    chat_id = message.chat.id
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("📈 Открыть акции на TradingView", url="https://www.tradingview.com/markets/stocks-usa/top-gainers/"))
-    bot.send_message(
-        chat_id,
-        "📈 **Мировые акции:**\n\n"
-        "Напишите в чат тикер любой мировой компании (`AAPL`, `TSLA`, `MSFT`, `GOOGL`), чтобы узнать актуальный курс с фондовой биржи!",
-        parse_mode="Markdown", reply_markup=markup
-    )
+    markup.add(types.InlineKeyboardButton("📈 Акции TradingView", url="https://www.tradingview.com/markets/stocks-usa/top-gainers/"))
+    bot.send_message(message.chat.id, "📈 Напишите в чат тикер любой компании (`AAPL`, `TSLA`), чтобы узнать курс.", parse_mode="Markdown", reply_markup=markup)
 
-# Универсальный обработчик текста (активы + конвертер + Trader AI)
 @bot.message_handler(func=lambda message: True)
 def handle_text_messages(message):
     text = message.text.strip().upper()
@@ -259,7 +168,7 @@ def handle_text_messages(message):
     chat_id = message.chat.id
 
     menu_buttons = [
-        "🪙 BITCOIN / КРИПТА", "🥇 Золото (XAU)", "💱 ФОРЕКС (EUR/USD)", 
+        "🪙 BITCOIN / КРИПТА", "🥇 ЗОЛОТО (XAU)", "💱 ФОРЕКС (EUR/USD)", 
         "📈 АКЦИИ (AAPL / TSLA)", "📊 ГРАФИКИ (TRADINGVIEW)", "📅 ЭКОНОМИЧЕСКИЙ КАЛЕНДАРЬ", 
         "📊 АНАЛИТИКА & НОВОСТИ", "💎 ПРЕМИУМ & VIP СИГНАЛЫ", 
         "📖 ИНСТРУКЦИЯ ДЛЯ НОВИЧКОВ", "🌐 ИЗМЕНИТЬ ЯЗЫК / CHANGE LANGUAGE"
@@ -267,92 +176,68 @@ def handle_text_messages(message):
     if text in menu_buttons or text.startswith('/'):
         return
 
-    # 1. Поиск активов через Yahoo Finance (акции, форекс, сырье)
     if len(original_text.split()) == 1 and len(text) <= 6:
-        sent_msg = bot.send_message(chat_id, f"🔍 Ищу актив `{text}` на мировых биржах...", parse_mode="Markdown")
+        sent_msg = bot.send_message(chat_id, f"🔍 Ищу актив `{text}`...", parse_mode="Markdown")
         try:
             ticker_symbol = text
-            if ticker_symbol in ["EURUSD", "GBPUSD", "USDJPY", "USDCAD", "AUDUSD"]:
+            if ticker_symbol in ["EURUSD", "GBPUSD", "USDJPY"]:
                 ticker_symbol += "=X"
             elif ticker_symbol in ["GOLD", "XAUUSD"]:
                 ticker_symbol = "GC=F"
-            elif ticker_symbol in ["SILVER", "XAGUSD"]:
-                ticker_symbol = "SI=F"
             elif ticker_symbol == "BRENT":
                 ticker_symbol = "BZ=F"
-            elif ticker_symbol in ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"]:
+            elif ticker_symbol in ["BTC", "ETH", "SOL", "BNB"]:
                 ticker_symbol += "-USD"
 
             stock = yf.Ticker(ticker_symbol)
             hist = stock.history(period="1d")
-            
             if not hist.empty:
                 price = hist['Close'].iloc[-1]
-                chart_markup = types.InlineKeyboardMarkup()
-                chart_markup.add(types.InlineKeyboardButton(f"📈 График {text} (TradingView)", url=f"https://www.tradingview.com/chart/?symbol={text}"))
-                
-                bot.edit_message_text(
-                    f"📊 **Глобальный рынок: {text}**\n\n"
-                    f"💵 **Актуальная цена:** `${price:,.2f}`\n"
-                    f"📈 **Статус:** 🟢 Активные данные с биржи",
-                    chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown", reply_markup=chart_markup
-                )
+                markup = types.InlineKeyboardMarkup()
+                markup.add(types.InlineKeyboardButton(f"📈 График {text}", url=f"https://www.tradingview.com/chart/?symbol={text}"))
+                bot.edit_message_text(f"📊 **{text}:** `${price:,.2f}`", chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown", reply_markup=markup)
                 return
         except Exception:
             pass
 
-        # 2. Поиск через CoinGecko с конвертером в USD, UZS, RUB
         try:
             search_url = f"https://api.coingecko.com/api/v3/search?query={text.lower()}"
             res = requests.get(search_url, timeout=5).json()
             coins = res.get("coins", [])
-
             if coins:
                 coin_id = coins[0]["id"]
-                coin_name = coins[0]["name"]
                 symbol = coins[0]["symbol"].upper()
-
-                price_url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd,uzs,rub"
-                p_data = requests.get(price_url, timeout=5).json().get(coin_id, {})
-
-                usd = p_data.get("usd", 0)
-                uzs = p_data.get("uzs", 0)
-                rub = p_data.get("rub", 0)
-
-                chart_markup = types.InlineKeyboardMarkup()
-                chart_markup.add(types.InlineKeyboardButton(f"📈 График {symbol} (TradingView)", url=f"https://www.tradingview.com/chart/?symbol={symbol}USDT"))
-
-                response_text = (
-                    f"📈 **Криптовалюта: {coin_name} ({symbol})**\n\n"
-                    f"💵 **Конвертер валют:**\n"
-                    f"• USD: ${usd:,.4f}\n"
-                    f"• UZS: {uzs:,.2f} so'm\n"
-                    f"• RUB: {rub:,.2f} руб.\n\n"
-                    f"📊 **Статус:** 🟢 Активный мониторинг"
+                p_url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd,uzs,rub"
+                p_data = requests.get(p_url, timeout=5).json().get(coin_id, {})
+                usd, uzs, rub = p_data.get("usd", 0), p_data.get("uzs", 0), p_data.get("rub", 0)
+                
+                markup = types.InlineKeyboardMarkup()
+                markup.add(types.InlineKeyboardButton(f"📈 График {symbol}", url=f"https://www.tradingview.com/chart/?symbol={symbol}USDT"))
+                bot.edit_message_text(
+                    f"📈 **{coins[0]['name']} ({symbol})**\n• USD: ${usd:,.4f}\n• UZS: {uzs:,.2f} so'm\n• RUB: {rub:,.2f} руб.",
+                    chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown", reply_markup=markup
                 )
-                bot.edit_message_text(response_text, chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown", reply_markup=chart_markup)
                 return
         except Exception:
             pass
 
-        try:
-            bot.edit_message_text(
-                f"❌ Актив `{text}` не найден на мировых биржах. Проверьте правильность тикера.",
-                chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown"
-            )
-        except Exception:
-            pass
+        bot.edit_message_text(f"❌ Актив `{text}` не найден.", chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown")
         return
 
-    # 3. Обращение к Trader AI через прямой безопасный запрос
-    sent_ai = bot.send_message(chat_id, "🤖 **Trader AI анализирует ваш запрос...**", parse_mode="Markdown")
-    ai_response = ask_gemini_ai(original_text)
+    # Trader AI с использованием стандартной библиотеки без ошибок
+    sent_ai = bot.send_message(chat_id, "🤖 **Trader AI анализирует...**", parse_mode="Markdown")
     try:
-        bot.edit_message_text(f"🤖 **Trader AI (Экспертный анализ):**\n\n{ai_response}", chat_id=chat_id, message_id=sent_ai.message_id, parse_mode="Markdown")
-    except Exception:
-        bot.send_message(chat_id, f"🤖 **Trader AI:**\n\n{ai_response}", parse_mode="Markdown")
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(f"Ты — профессиональный трейдер. Ответь на вопрос: {original_text}")
+        bot.edit_message_text(f"🤖 **Trader AI:**\n\n{response.text}", chat_id=chat_id, message_id=sent_ai.message_id, parse_mode="Markdown")
+    except Exception as e:
+        try:
+            model_alt = genai.GenerativeModel("gemini-1.5-pro")
+            response = model_alt.generate_content(f"Ты — профессиональный трейдер. Ответь на вопрос: {original_text}")
+            bot.edit_message_text(f"🤖 **Trader AI:**\n\n{response.text}", chat_id=chat_id, message_id=sent_ai.message_id, parse_mode="Markdown")
+        except Exception as err:
+            bot.edit_message_text(f"⚠️ Ошибка ИИ: `{str(err)}`", chat_id=chat_id, message_id=sent_ai.message_id, parse_mode="Markdown")
 
-# Вебхук
 @server.route(f'/{TOKEN}', methods=['POST'])
 def webhook():
     json_string = request.get_data().decode('utf-8')
@@ -364,6 +249,7 @@ if __name__ == '__main__':
     bot.remove_webhook()
     bot.set_webhook(url=f"https://spot-bot-new.onrender.com/{TOKEN}")
     server.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
+
 
 
 
