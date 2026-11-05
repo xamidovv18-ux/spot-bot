@@ -11,7 +11,7 @@ server = Flask(__name__)
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
-# Прямой и железный запрос к Gemini API без ошибок библиотек
+# Прямой и железный запрос к Gemini API без ошибок библиотек и кэша
 def ask_ai(prompt_text):
     if not GEMINI_API_KEY:
         return "⚠️ Ошибка: Ключ GEMINI_API_KEY не найден в настройках Render."
@@ -27,7 +27,7 @@ def ask_ai(prompt_text):
     except Exception as e:
         return f"⚠️ Ошибка ИИ: {str(e)}"
 
-# Полное расширенное меню терминала (все функции на месте!)
+# Главное меню со ВСЕМИ функциями
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
@@ -60,7 +60,6 @@ def send_welcome(message):
     )
     bot.send_message(message.chat.id, welcome_text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
-# Кнопка Графики TradingView
 @bot.message_handler(func=lambda message: message.text == "📊 Графики (TradingView)")
 def tradingview_charts(message):
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -70,7 +69,6 @@ def tradingview_charts(message):
     )
     bot.send_message(message.chat.id, "📊 **Интерактивные графики и технический анализ:**", parse_mode="Markdown", reply_markup=markup)
 
-# Инструкция
 @bot.message_handler(func=lambda message: message.text == "📖 Инструкция для новичков")
 def beginner_guide(message):
     guide_text = (
@@ -82,7 +80,6 @@ def beginner_guide(message):
     )
     bot.send_message(message.chat.id, guide_text, parse_mode="Markdown")
 
-# Смена языков
 @bot.message_handler(func=lambda message: message.text in ["🌐 Изменить язык / Change Language", "🌐 Tilni tansh / O'zbekcha"])
 def change_language(message):
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -100,7 +97,6 @@ def lang_callback(call):
     bot.answer_callback_query(call.id, text=f"Language set to {lang}")
     bot.send_message(call.message.chat.id, f"✅ Язык успешно изменен на **{lang}**.", parse_mode="Markdown", reply_markup=get_main_keyboard())
 
-# Экономический календарь
 @bot.message_handler(func=lambda message: message.text == "📅 Экономический календарь")
 def economic_calendar(message):
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -110,7 +106,6 @@ def economic_calendar(message):
     )
     bot.send_message(message.chat.id, "📅 **Экономический календарь и важные события:**", parse_mode="Markdown", reply_markup=markup)
 
-# Аналитика и новости
 @bot.message_handler(func=lambda message: message.text == "📊 Аналитика & Новости")
 def market_analytics(message):
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -120,7 +115,6 @@ def market_analytics(message):
     )
     bot.send_message(message.chat.id, "📊 **Глобальная аналитика и новости рынков:**", parse_mode="Markdown", reply_markup=markup)
 
-# Премиум меню
 @bot.message_handler(func=lambda message: message.text == "💎 Премиум & VIP Сигналы")
 def premium_trader_ai(message):
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -131,13 +125,18 @@ def premium_trader_ai(message):
     )
     text = (
         "💎 **Премиум-доступ & VIP Терминал**\n\n"
+        "Получите максимальные возможности для успешного трейдинга:\n"
         "• 🤖 **Безлимитный Trader AI** — глубокий анализ без ограничений.\n"
-        "• ⚡ **VIP Торговые Сигналы** — точные точки входа (Buy/Sell).\n\n"
-        "💳 **Тарифы:** 1 Месяц ($10) | 1 Год ($100)"
+        "• ⚡ **VIP Торговые Сигналы** — точные точки входа (Buy/Sell).\n"
+        "• 🔔 **Ценовые уведомления** — контроль важных уровней.\n\n"
+        "💳 **Тарифы:**\n"
+        "• 📅 **1 Месяц:** `$10`\n"
+        "• 📅 **1 Год:** `$100` *(Максимальная выгода!)*\n\n"
+        "👇 Выберите тариф или нажмите кнопку связи для быстрой активации:"
     )
     bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=markup)
 
-# Кнопка Bitcoin с живым конвертером (никаких нулей!)
+# Кнопка Bitcoin с живым курсом (без нулей)
 @bot.message_handler(func=lambda message: message.text == "🪙 Bitcoin / Крипта")
 def crypto_bitcoin(message):
     chat_id = message.chat.id
@@ -162,7 +161,6 @@ def crypto_bitcoin(message):
     except Exception:
         bot.send_message(chat_id, "⚠️ Ошибка получения данных с биржи.", reply_markup=markup)
 
-# Кнопка Золото
 @bot.message_handler(func=lambda message: message.text == "🥇 Золото (XAU)")
 def gold_xau(message):
     chat_id = message.chat.id
@@ -175,7 +173,6 @@ def gold_xau(message):
     except Exception:
         bot.send_message(chat_id, "🥇 **Золото (XAU/USD):** `$2,740.50`", parse_mode="Markdown", reply_markup=markup)
 
-# Кнопка Форекс
 @bot.message_handler(func=lambda message: message.text == "💱 Форекс (EUR/USD)")
 def forex_eurusd(message):
     chat_id = message.chat.id
@@ -188,14 +185,12 @@ def forex_eurusd(message):
     except Exception:
         bot.send_message(chat_id, "💱 **EUR/USD:** `1.0850`", parse_mode="Markdown", reply_markup=markup)
 
-# Кнопка Акции
 @bot.message_handler(func=lambda message: message.text == "📈 Акции (AAPL / TSLA)")
 def stocks_menu(message):
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("📈 Акции на TradingView", url="https://www.tradingview.com/markets/stocks-usa/top-gainers/"))
     bot.send_message(message.chat.id, "📈 **Мировые акции:**\n\nНапишите в чат тикер любой компании (`AAPL`, `TSLA`, `MSFT`), чтобы узнать актуальный курс!", parse_mode="Markdown", reply_markup=markup)
 
-# Универсальный обработчик (Активы + Конвертер + Trader AI)
 @bot.message_handler(func=lambda message: True)
 def handle_text_messages(message):
     text = message.text.strip().upper()
@@ -274,6 +269,7 @@ if __name__ == '__main__':
     bot.remove_webhook()
     bot.set_webhook(url=f"https://spot-bot-new.onrender.com/{TOKEN}")
     server.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
+
 
 
 
