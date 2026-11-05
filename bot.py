@@ -13,13 +13,15 @@ server = Flask(__name__)
 
 # Настройка Gemini AI
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+gemini_model = None
 if GEMINI_API_KEY and not GEMINI_API_KEY.startswith("http") and len(GEMINI_API_KEY) > 20:
-    genai.configure(api_key=GEMINI_API_KEY)
-    gemini_model = genai.GenerativeModel("gemini-1.5-flash")
-else:
-    gemini_model = None
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+    except Exception as e:
+        print(f"Ошибка инициализации Gemini: {e}")
 
-# Главное расширенное меню терминала (все возможности)
+# Главное расширенное меню терминала
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
@@ -43,9 +45,9 @@ def send_welcome(message):
     welcome_text = (
         "🌟 **Добро пожаловать в Global Spot & Forex Terminal!** 🚀\n\n"
         "🌍 **Профессиональный мультирыночный терминал:**\n"
-        "• 📈 **Мировые акции** (Apple, Tesla, Microsoft и др. в реальном времени)\n"
+        "• 📈 **Мировые акции** (Apple, Tesla, Microsoft и др.)\n"
         "• 🪙 **Криптовалюты** (Тысячи монет с конвертером в USD, UZS и RUB)\n"
-        "• 💱 **Форекс и Металлы** (EUR/USD, GBP/USD, Золото XAU, Нефть Brent)\n"
+        "• 💱 **Форекс и Металлы** (EUR/USD, Золото XAU, Нефть Brent)\n"
         "• 📊 **Интерактивные графики TradingView** для каждого актива\n"
         "• 📅 **Экономический календарь и аналитика рынков**\n"
         "• 💎 **VIP Торговые сигналы и Премиум-доступ**\n"
@@ -78,14 +80,12 @@ def beginner_guide(message):
     guide_text = (
         "📖 **Пошаговая инструкция по использованию терминала:**\n\n"
         "1️⃣ **Поиск любого актива со всего мира:**\n"
-        "• Отправьте в чат тикер акции (`AAPL`, `TSLA`, `MSFT`), крипты (`BTC`, `ETH`) или форекса (`EURUSD`, `GC=F`).\n"
+        "• Отправьте в чат тикер акции (`AAPL`, `TSLA`), крипты (`BTC`, `ETH`) или форекса (`EURUSD`, `GC=F`).\n"
         "2️⃣ **Универсальный конвертер валют:**\n"
         "• Бот автоматически пересчитывает стоимость активов в **USD, UZS и RUB**.\n"
         "3️⃣ **Интерактивные графики:**\n"
-        "• К каждому найденному активу прикрепляется прямая кнопка на TradingView для анализа свечей.\n"
-        "4️⃣ **Экономический календарь и аналитика:**\n"
-        "• Быстрый доступ к ключевым мировым финансовым новостям и отчетам.\n"
-        "5️⃣ **Trader AI (Gemini):**\n"
+        "• К каждому найденному активу прикрепляется прямая кнопка на TradingView.\n"
+        "4️⃣ **Trader AI (Gemini):**\n"
         "• Задавайте любые вопросы по трейдингу простым текстом в чат и получайте экспертный разбор."
     )
     bot.send_message(chat_id, guide_text, parse_mode="Markdown")
@@ -130,7 +130,7 @@ def market_analytics(message):
     )
     bot.send_message(chat_id, "📊 **Глобальная аналитика и новости рынков:**", parse_mode="Markdown", reply_markup=markup)
 
-# Премиум меню с привлечением пользователей
+# Премиум меню
 @bot.message_handler(func=lambda message: message.text == "💎 Премиум & VIP Сигналы")
 def premium_trader_ai(message):
     chat_id = message.chat.id
@@ -145,9 +145,8 @@ def premium_trader_ai(message):
         "💎 **Премиум-доступ & VIP Терминал**\n\n"
         "Получите максимальные возможности для успешного трейдинга:\n"
         "• 🤖 **Безлимитный Trader AI** — глубокий анализ без ограничений.\n"
-        "• ⚡ **VIP Торговые Сигналы** — точные точки входа (Buy/Sell) по крипте, форексу и акциям.\n"
-        "• 🔔 **Ценовые уведомления (Alerts)** — контроль важных уровней цен.\n"
-        "• 📊 **Эксклюзивная аналитика** и закрытые обзоры рынков.\n\n"
+        "• ⚡ **VIP Торговые Сигналы** — точные точки входа (Buy/Sell).\n"
+        "• 🔔 **Ценовые уведомления (Alerts)** — контроль важных уровней цен.\n\n"
         "💳 **Тарифы:**\n"
         "• 📅 **1 Месяц:** `$10`\n"
         "• 📅 **1 Год:** `$100` *(Максимальная выгода!)*\n\n"
@@ -167,19 +166,11 @@ def crypto_bitcoin(message):
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("📈 Открыть график BTC (TradingView)", url="https://www.tradingview.com/chart/?symbol=BINANCE%3ABTCUSDT"))
     try:
-        url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,uzs,rub"
-        response = requests.get(url, timeout=5).json()
-        data = response.get("bitcoin", {})
-        usd = data.get("usd", 0)
-        uzs = data.get("uzs", 0)
-        rub = data.get("rub", 0)
-
+        btc = yf.Ticker("BTC-USD")
+        price = btc.history(period="1d")['Close'].iloc[-1]
         text = (
             f"📊 **Анализ актива: Bitcoin (BTC)**\n\n"
-            f"💵 **Конвертер / Курс:**\n"
-            f"• USD: ${usd:,.2f}\n"
-            f"• UZS: {uzs:,.2f} so'm\n"
-            f"• RUB: {rub:,.2f} руб.\n\n"
+            f"💵 **Текущая котировка:** `${price:,.2f}`\n"
             f"📈 **Технический вердикт & Сигнал:** 🟢 BUY (Бычий импульс)"
         )
         bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
@@ -237,7 +228,7 @@ def stocks_menu(message):
         parse_mode="Markdown", reply_markup=markup
     )
 
-# Универсальный обработчик текста (Любой мировой актив + Конвертер крипты + Графики + ИИ)
+# Универсальный обработчик текста
 @bot.message_handler(func=lambda message: True)
 def handle_text_messages(message):
     text = message.text.strip().upper()
@@ -253,7 +244,7 @@ def handle_text_messages(message):
     if text in menu_buttons or text.startswith('/'):
         return
 
-    # 1. Поиск мировых акций, форекса и сырья через Yahoo Finance
+    # 1. Поиск активов через Yahoo Finance
     if len(original_text.split()) == 1 and len(text) <= 6:
         sent_msg = bot.send_message(chat_id, f"🔍 Ищу актив `{text}` на мировых биржах...", parse_mode="Markdown")
         try:
@@ -266,6 +257,8 @@ def handle_text_messages(message):
                 ticker_symbol = "SI=F"
             elif ticker_symbol == "BRENT":
                 ticker_symbol = "BZ=F"
+            elif ticker_symbol in ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"]:
+                ticker_symbol += "-USD"
 
             stock = yf.Ticker(ticker_symbol)
             hist = stock.history(period="1d")
@@ -277,7 +270,7 @@ def handle_text_messages(message):
                 
                 bot.edit_message_text(
                     f"📊 **Глобальный рынок: {text}**\n\n"
-                    f"💵 **Актуальная цена:** `${price:,.2f}`\n"
+                    f"💵 **Актуальная цена / Конвертер:** `${price:,.2f}`\n"
                     f"📈 **Статус:** 🟢 Активные данные с биржи",
                     chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown", reply_markup=chart_markup
                 )
@@ -285,7 +278,7 @@ def handle_text_messages(message):
         except Exception:
             pass
 
-        # 2. Поиск криптовалют и конвертер через CoinGecko
+        # 2. Поиск через CoinGecko
         try:
             search_url = f"https://api.coingecko.com/api/v3/search?query={text.lower()}"
             res = requests.get(search_url, timeout=5).json()
@@ -328,17 +321,17 @@ def handle_text_messages(message):
             pass
         return
 
-    # 3. Обращение к Trader AI (Gemini)
+    # 3. Обращение к Trader AI (Gemini) с выводом точной ошибки
     if gemini_model:
         sent_ai = bot.send_message(chat_id, "🤖 **Trader AI анализирует ваш запрос...**", parse_mode="Markdown")
         try:
             prompt = f"Ты — профессиональный финансовый аналитик и трейдер. Дай экспертный ответ на вопрос пользователя: {original_text}"
             response = gemini_model.generate_content(prompt)
             bot.edit_message_text(f"🤖 **Trader AI (Экспертный анализ):**\n\n{response.text}", chat_id=chat_id, message_id=sent_ai.message_id, parse_mode="Markdown")
-        except Exception:
-            bot.edit_message_text(f"⚠️ Ошибка Gemini AI. Проверьте правильность секретного ключа в Render.", chat_id=chat_id, message_id=sent_ai.message_id)
+        except Exception as e:
+            bot.edit_message_text(f"⚠️ Ошибка Gemini: `{str(e)}`", chat_id=chat_id, message_id=sent_ai.message_id)
     else:
-        bot.send_message(chat_id, "⚠️ Trader AI недоступен: в поле `GEMINI_API_KEY` в Render должен быть указан секретный ключ API от Google (начинающийся с `AIza...`), а не ваш IP-адрес.")
+        bot.send_message(chat_id, "⚠️ Trader AI не инициализирован. Проверьте переменную `GEMINI_API_KEY` в Render.")
 
 # Вебхук
 @server.route(f'/{TOKEN}', methods=['POST'])
@@ -352,8 +345,6 @@ if __name__ == '__main__':
     bot.remove_webhook()
     bot.set_webhook(url=f"https://spot-bot-new.onrender.com/{TOKEN}")
     server.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
-
-
 
 
 
