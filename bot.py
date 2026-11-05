@@ -11,12 +11,12 @@ server = Flask(__name__)
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
-# Словарь для подсчета бесплатных попыток AI (15 попыток для обычных пользователей)
+# Хранилище лимитов ИИ
 user_ai_limits = {}
 FREE_LIMIT = 15
 
-# Список Telegram ID премиум-пользователей (можешь добавить сюда свои ID через запятую)
-PREMIUM_USER_IDS = [123456789] # Сюда можно вписать ID VIP-клиентов
+# Впиши сюда свой Telegram ID или ID премиум-пользователей (например: [123456789]) для безлимита к AI
+PREMIUM_USER_IDS = [] 
 
 def ask_ai(prompt_text):
     if not GEMINI_API_KEY:
@@ -64,9 +64,9 @@ def send_welcome(message):
         "🌟 **Добро пожаловать в Global Spot & Forex Terminal!** 🚀\n\n"
         "🌍 **Профессиональный мультирыночный терминал:**\n"
         "• 📈 **Мировые акции** (Apple, Tesla, Microsoft и др.)\n"
-        "• 🪙 **Криптовалюты** (Тысячи монет с конвертером в USD, UZS и RUB)\n"
+        "• 🪙 **Криптовалюты** (Мгновенный курс через Binance)\n"
         "• 💱 **Форекс и Металлы** (EUR/USD, Золото XAU)\n"
-        "• 🤖 **Trader AI (Gemini)** — 15 бесплатных попыток для новичков и безлимит для VIP!\n\n"
+        "• 🤖 **Trader AI** — 15 бесплатных попыток для новичков и безлимит для VIP!\n\n"
         "👇 *Используйте кнопки меню ниже для работы:*"
     )
     bot.send_message(message.chat.id, welcome_text, parse_mode="Markdown", reply_markup=get_main_keyboard())
@@ -136,7 +136,7 @@ def premium_trader_ai(message):
     )
     bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=markup)
 
-# Кнопка Bitcoin через Binance API (без нулей)
+# Кнопка Bitcoin через стабильный Binance API
 @bot.message_handler(func=lambda message: message.text == "🪙 Bitcoin / Крипта")
 def crypto_bitcoin(message):
     chat_id = message.chat.id
@@ -159,7 +159,7 @@ def crypto_bitcoin(message):
         )
         bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
     except Exception:
-        bot.send_message(chat_id, "⚠️ Ошибка получения данных.", reply_markup=markup)
+        bot.send_message(chat_id, "⚠️ Ошибка получения данных.", parse_mode="Markdown", reply_markup=markup)
 
 @bot.message_handler(func=lambda message: message.text == "🥇 Золото (XAU)")
 def gold_xau(message):
@@ -191,7 +191,7 @@ def stocks_menu(message):
     markup.add(types.InlineKeyboardButton("📈 Акции TradingView", url="https://www.tradingview.com/markets/stocks-usa/top-gainers/"))
     bot.send_message(message.chat.id, "📈 Отправьте тикер компании (`AAPL`, `TSLA`), чтобы узнать курс.", parse_mode="Markdown", reply_markup=markup)
 
-# Универсальный обработчик (активы + проверка лимитов AI для обычных и премиум пользователей)
+# Универсальный обработчик текста (активы + проверка лимитов AI)
 @bot.message_handler(func=lambda message: True)
 def handle_text_messages(message):
     text = message.text.strip().upper()
@@ -208,7 +208,7 @@ def handle_text_messages(message):
     if text in menu_buttons or text.startswith('/'):
         return
 
-    # 1. Поиск активов
+    # Поиск активов
     if len(original_text.split()) == 1 and len(text) <= 6:
         sent_msg = bot.send_message(chat_id, f"🔍 Ищу актив `{text}`...", parse_mode="Markdown")
         try:
@@ -236,13 +236,9 @@ def handle_text_messages(message):
                 usd = p_data.get("usd", 0)
                 uzs = p_data.get("uzs", 0)
                 rub = p_data.get("rub", 0)
-                
                 markup = types.InlineKeyboardMarkup()
                 markup.add(types.InlineKeyboardButton(f"📈 График {symbol}", url=f"https://www.tradingview.com/chart/?symbol={symbol}USDT"))
-                bot.edit_message_text(
-                    f"📈 **{coins[0]['name']} ({symbol})**\n• USD: ${usd:,.4f}\n• UZS: {uzs:,.2f} so'm\n• RUB: {rub:,.2f} руб.",
-                    chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown", reply_markup=markup
-                )
+                bot.edit_message_text(f"📈 **{coins[0]['name']} ({symbol})**\n• USD: ${usd:,.4f}\n• UZS: {uzs:,.2f} so'm\n• RUB: {rub:,.2f} руб.", chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown", reply_markup=markup)
                 return
         except Exception:
             pass
@@ -250,7 +246,7 @@ def handle_text_messages(message):
         bot.edit_message_text(f"❌ Актив `{text}` не найден.", chat_id=chat_id, message_id=sent_msg.message_id, parse_mode="Markdown")
         return
 
-    # 2. Проверка лимитов Trader AI (15 бесплатных для обычных, безлимит для Премиум)
+    # Проверка лимитов AI (15 бесплатных, безлимит для PREMIUM_USER_IDS)
     is_premium = user_id in PREMIUM_USER_IDS
     
     if not is_premium:
@@ -258,22 +254,14 @@ def handle_text_messages(message):
         if used_count >= FREE_LIMIT:
             markup = types.InlineKeyboardMarkup()
             markup.add(types.InlineKeyboardButton("💎 Купить Премиум ($10)", url="https://t.me/samadkhon_khmdvv"))
-            bot.send_message(
-                chat_id, 
-                "❌ **Лимит бесплатных запросов исчерпан!**\n\n"
-                "Вы использовали все **15 бесплатных попыток** Trader AI.\n"
-                "Оформите премиум-доступ, чтобы снять любые ограничения!",
-                parse_mode="Markdown",
-                reply_markup=markup
-            )
+            bot.send_message(chat_id, "❌ **Лимит бесплатных запросов исчерпан!**\n\nВы использовали все 15 попыток Trader AI.", parse_mode="Markdown", reply_markup=markup)
             return
         user_ai_limits[user_id] = used_count + 1
         remaining = FREE_LIMIT - (used_count + 1)
-        limit_note = f"\n*(Осталось бесплатных попыток: {remaining})*"
+        limit_note = f"\n*(Осталось попыток: {remaining})*"
     else:
-        limit_note = "\n*(👑 VIP Безлимитный доступ)*"
+        limit_note = "\n*(👑 VIP Безлимит)*"
 
-    # Запрос к Trader AI
     sent_ai = bot.send_message(chat_id, f"🤖 **Trader AI анализирует...**{limit_note}", parse_mode="Markdown")
     ai_answer = ask_ai(original_text)
     try:
@@ -292,6 +280,7 @@ if __name__ == '__main__':
     bot.remove_webhook()
     bot.set_webhook(url=f"https://spot-bot-new.onrender.com/{TOKEN}")
     server.run(host="0.0.0.0", port=int(os.environ.get('PORT', 5000)))
+
 
 
 
