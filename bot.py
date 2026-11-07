@@ -6,6 +6,13 @@ import yfinance as yf
 from flask import Flask, request
 from datetime import datetime
 
+
+
+
+
+TOKEN = "9223957380:AAFJ-YtREgHozAVaU-s-9I37ZHvQQGQnCFM"
+bot = telebot.TeleBot(TOKEN)
+server = Flask(__name__)
 # Словарь для мгновенного перевода интерфейса
 LANG_TEXTS = {
     "ru": {
@@ -93,11 +100,6 @@ def set_language_callback(call):
     bot.answer_callback_query(call.id, text="Language updated!")
     bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown")
 
-
-
-TOKEN = "9223957380:AAFJ-YtREgHozAVaU-s-9I37ZHvQQGQnCFM"
-bot = telebot.TeleBot(TOKEN)
-server = Flask(__name__)
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
