@@ -56,26 +56,32 @@ def show_stats(message):
 
 def ask_ai(prompt_text):
     if not GEMINI_API_KEY:
-        return "⚠️ Ошибка: Ключ GEMINI_API_KEY не найден в настройках Render."
+        return "⚠️ Ошибка: Ключ GEMINI_API_KEY не настроен."
     
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{
-            "parts": [{"text": f"Ты — профессиональный трейдер и финансовый аналитик. Дай глубокий, экспертный и развернутый ответ на вопрос трейдера: {prompt_text}"}]
+            "parts": [{"text": f"Ты — профессиональный трейдер. Ответь кратко и четко на русском языке: {prompt_text}"}]
         }]
     }
     
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=15)
+        response = requests.post(url, headers=headers, json=payload, timeout=20)
         res_json = response.json()
-        if "candidates" in res_json and len(res_json["candidates"]) > 0:
-            candidate = res_json["candidates"][0]
-            if "content" in candidate and "parts" in candidate["content"]:
-                return candidate["content"]["parts"][0]["text"]
-        return "⚠️ Ответ от ИИ пустой."
+        
+        # Безопасное извлечение текста ответа без пустых сбоев
+        candidates = res_json.get("candidates", [])
+        if candidates:
+            content = candidates[0].get("content", {})
+            parts = content.get("parts", [])
+            if parts and "text" in parts[0]:
+                return parts[0]["text"]
+        
+        return "⚠️ Не удалось получить анализ рынка. Попробуйте еще раз."
     except Exception as e:
-        return f"⚠️ Ошибка связи с Trader AI: {str(e)}"
+        return f"⚠️ Ошибка связи с сервером AI: {str(e)}"
+
 
 # Главное профессиональное меню со всеми функциями
 def get_main_keyboard():
