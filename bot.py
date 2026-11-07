@@ -62,7 +62,7 @@ def ask_ai(prompt_text):
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{
-            "parts": [{"text": f"Ты профессиональный трейдер. Дай точный и подробный ответ: {prompt_text}"}]
+            "parts": [{"text": f"Ты профессиональный трейдер. Дай точный и подробный торговый ответ на русском или узбекском языке: {prompt_text}"}]
         }]
     }
     
@@ -70,18 +70,17 @@ def ask_ai(prompt_text):
         response = requests.post(url, headers=headers, json=payload, timeout=25)
         res_json = response.json()
         
-        # Надежное извлечение текста ответа от Google Gemini
-        candidates = res_json.get("candidates", [])
-        if candidates:
-            content = candidates[0].get("content", {})
-            parts = content.get("parts", [])
-            if parts and "text" in parts[0]:
-                return parts[0]["text"]
-                
-        return "⚠️ Не удалось получить данные от ИИ. Попробуйте еще раз."
+        # Железобетонное извлечение текста из ответа Gemini API
+        if "candidates" in res_json:
+            for candidate in res_json["candidates"]:
+                if "content" in candidate and "parts" in candidate["content"]:
+                    for part in candidate["content"]["parts"]:
+                        if "text" in part:
+                            return part["text"]
+                            
+        return f"⚠️ Ошибка ответа API: {res_json.get('error', 'Пустой ответ')}"
     except Exception as e:
         return f"⚠️ Ошибка соединения: {str(e)}"
-
 
         
         # Безопасное извлечение текста ответа без пустых сбоев
@@ -162,30 +161,30 @@ def live_signals_menu(message):
     
     sent_msg = bot.send_message(chat_id, f"⚡ **Генерирую актуальные торговые сигналы на {current_time}...**", parse_mode="Markdown")
     
-    # Промпт для ИИ, чтобы он выдавал свежий расчет со всеми зонами и лотами
+    @bot.message_handler(func=lambda message: message.text == "⚡ Живые сигналы (VIP/Free)")
+def live_signals_menu(message):
+    track_user(message)
+    chat_id = message.chat.id
+    current_time = datetime.now().strftime("%H:%M:%S | %d.%m.%Y")
+    
+    sent_msg = bot.send_message(chat_id, f"⚡ **Генерирую свежие торговые сигналы на {current_time}...**", parse_mode="Markdown")
+    
     signal_prompt = (
-        f"Текущее время: {current_time}. Сгенерируй абсолютно новые, актуальные торговые сигналы "
-        "для ключевых рынков (Bitcoin/USDT, Золото XAU/USD, EUR/USD). "
-        "Для каждого сигнала укажи: "
-        "1. Направление (LONG/BUY или SHORT/SELL). "
-        "2. Точную зону входа (с учетом текущей цены). "
-        "3. Точный Stop-Loss. "
-        "4. Take-Profit (цели). "
-        "5. Расчет потенциальной прибыли для лотов 0.01 и 0.1 при движении в 100 пунктов. "
-        "Не используй старые или заученные шаблонные цифры, дай свежий анализ на эту секунду!"
+        f"Текущее время: {current_time}. Сгенерируй актуальные торговые сигналы "
+        "для Bitcoin/USDT, Золота XAU/USD и EUR/USD. "
+        "Укажи для каждого: 1. Направление (LONG/SHORT). 2. Точку входа. 3. Stop-Loss. 4. Take-Profit. 5. Расчет для лотов 0.01 и 0.1."
     )
     
     fresh_signals = ask_ai(signal_prompt)
     
     markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("📈 Открыть терминал TradingView", url="https://www.tradingview.com/chart/"))
+    markup.add(types.InlineKeyboardButton("📈 Открыть TradingView", url="https://www.tradingview.com/chart/"))
     
     try:
         bot.edit_message_text(
-            f"⚡ **Оперативные торговые сигналы рынков**\n"
-            f"🕒 *Время генерации:* `{current_time}`\n\n"
-            f"{fresh_signals}\n\n"
-            f"💡 *Сигналы обновляются автоматически в реальном времени. Для доступа к VIP-сигналам перейдите в раздел Премиум.*",
+            f"⚡ **Оперативные торговые сигналы**\n"
+            f"🕒 *Время:* `{current_time}`\n\n"
+            f"{fresh_signals}",
             chat_id=chat_id,
             message_id=sent_msg.message_id,
             parse_mode="Markdown",
@@ -193,6 +192,7 @@ def live_signals_menu(message):
         )
     except Exception:
         bot.send_message(chat_id, f"⚡ **Сигналы ({current_time}):**\n\n{fresh_signals}", parse_mode="Markdown", reply_markup=markup)
+
 
 
 # Интерактивный конвертер валют
