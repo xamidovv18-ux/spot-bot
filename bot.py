@@ -190,22 +190,37 @@ def beginner_guide(message):
     )
     bot.send_message(message.chat.id, guide_text, parse_mode="Markdown")
 
+# Словарь для сохранения языка каждого пользователя
+user_languages = {}
+
 @bot.message_handler(func=lambda message: message.text in ["🌐 Изменить язык / Change Language", "🌐 Tilni tansh / O'zbekcha"])
 def change_language(message):
+    track_user(message)
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.add(
         types.InlineKeyboardButton("🇺🇿 O'zbekcha", callback_data="lang_uz"),
         types.InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
-        types.InlineKeyboardButton("🇬🇧 English", callback_data="lang_en"),
-        types.InlineKeyboardButton("🇹🇷 Türkçe", callback_data="lang_tr")
+        types.InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")
     )
-    bot.send_message(message.chat.id, "🌐 **Выберите язык / Select language / Dil seçin:**", parse_mode="Markdown", reply_markup=markup)
+    bot.send_message(message.chat.id, "🌐 **Выберите язык / Select language / Tilni tanlang:**", parse_mode="Markdown", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("lang_"))
 def lang_callback(call):
-    lang = call.data.split("_")[1].upper()
-    bot.answer_callback_query(call.id, text=f"Language set to {lang}")
-    bot.send_message(call.message.chat.id, f"✅ Язык успешно изменен на **{lang}**.", parse_mode="Markdown", reply_markup=get_main_keyboard())
+    lang = call.data.split("_")[1].lower()
+    user_id = call.from_user.id
+    user_languages[user_id] = lang  # Сохраняем язык пользователя
+    
+    lang_names = {"uz": "O'zbekcha", "ru": "Русский", "en": "English"}
+    bot.answer_callback_query(call.id, text=f"Language changed to {lang_names.get(lang, lang)}")
+    
+    bot.edit_message_text(
+        f"✅ Язык успешно изменен на: **{lang_names.get(lang, lang)}**", 
+        chat_id=call.message.chat.id, 
+        message_id=call.message.message_id, 
+        parse_mode="Markdown"
+    )
+    bot.send_message(call.message.chat.id, "👇 Главное меню:", reply_markup=get_main_keyboard())
+
 
 @bot.message_handler(func=lambda message: message.text == "📅 Экономический календарь")
 def economic_calendar(message):
