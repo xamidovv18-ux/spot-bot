@@ -6,41 +6,93 @@ import yfinance as yf
 from flask import Flask, request
 from datetime import datetime
 
-# Словарь для мгновенного перевода всего интерфейса
+# Словарь для мгновенного перевода интерфейса
 LANG_TEXTS = {
     "ru": {
-        "welcome": "🤖 Привет! Я твой персональный профессиональный торговый бот.",
-        "ai_limit": "❌ **Лимит бесплатных запросов исчерпан!**\n\nОформите премиум для безлимитного доступа.",
-        "analyzing": "🤖 **Trader AI анализирует рынок и рассчитывает уровни...**",
-        "signal_header": "⚡ **Оперативные торговые сигналы**",
-        "lang_changed": "✅ **Яжк успешно изменен на:** Русский 🇷🇺",
         "select_lang": "🌐 **Выберите язык интерфейса:**",
+        "lang_changed": "✅ **Язык успешно изменен на:** Русский 🇷🇺",
         "error_ai": "⚠️ Не удалось получить данные от ИИ."
     },
     "uz": {
-        "welcome": "🤖 Salom! Men sizning shaxsiy professional savdo botingizman.",
-        "ai_limit": "❌ **Bepul so'rovlar limiti tugadi!**\n\nCheksiz kirish uchun Premium sotib oling.",
-        "analyzing": "🤖 **Trader AI bozorni tahlil qilmoqda va darajalarni hisoblamoqda...**",
-        "signal_header": "⚡ **Tekor savdo signallari**",
-        "lang_changed": "✅ **Til muvaffaqiyatli o'zgartirildi:** O'zbekcha 🇺🇿",
         "select_lang": "🌐 **Interfeys tilini tanlang:**",
+        "lang_changed": "✅ **Til muvaffaqiyatli o'zgartirildi:** O'zbekcha 🇺🇿",
         "error_ai": "⚠️ Sun'iy intellekt ma'lumotlarini olib bo'lmadi."
     },
     "en": {
-        "welcome": "🤖 Hello! I am your personal professional trading bot.",
-        "ai_limit": "❌ **Free request limit reached!**\n\nGet Premium for unlimited access.",
-        "analyzing": "🤖 **Trader AI is analyzing the market and calculating levels...**",
-        "signal_header": "⚡ **Live Trading Signals**",
-        "lang_changed": "✅ **Language successfully changed to:** English 🇬🇧",
         "select_lang": "🌐 **Select interface language:**",
+        "lang_changed": "✅ **Language successfully changed to:** English 🇬🇧",
         "error_ai": "⚠️ Failed to get data from AI."
     }
 }
 
-# Функция получения текста на нужном языке
-def get_text(user_id, key):
-    lang = user_languages.get(user_id, "ru")
-    return LANG_TEXTS.get(lang, LANG_TEXTS["ru"]).get(key, LANG_TEXTS["ru"].get(key, ""))
+user_languages = {}
+
+def get_user_lang(user_id):
+    return user_languages.get(user_id, "ru")
+
+# Универсальная функция для ИИ с учетом языка пользователя
+def ask_ai(prompt_text, user_id=None):
+    if not GEMINI_API_KEY:
+        return "⚠️ API key not configured."
+    
+    lang = get_user_lang(user_id) if user_id else "ru"
+    
+    lang_instructions = {
+        "uz": "Siz professional treydersiz. Javobni TO'LIQ O'zbek tilida, aniq va professional tarzda bering: ",
+        "en": "You are a professional trader. Answer COMPLETELY in English, accurately and professionally: ",
+        "ru": "Ты профессиональный трейдер. Дай точный и профессиональный ответ ПОЛНОСТЬЮ на русском языке: "
+    }
+    
+    system_prompt = lang_instructions.get(lang, lang_instructions["ru"])
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{
+            "parts": [{"text": f"{system_prompt} {prompt_text}"}]
+        }]
+    }
+    
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=25)
+        res_json = response.json()
+        
+        if "candidates" in res_json:
+            for candidate in res_json["candidates"]:
+                if "content" in candidate and "parts" in candidate["content"]:
+                    for part in candidate["content"]["parts"]:
+                        if "text" in part:
+                            return part["text"]
+                            
+        return "⚠️ Ошибка ответа API"
+    except Exception as e:
+        return f"⚠️ Ошибка: {str(e)}"
+
+# Меню выбора языка
+@bot.message_handler(func=lambda message: message.text in ["🌐 Изменить язык / Change Language", "🌐 Tilni tanlash / O'zbekcha"])
+def change_language_menu(message):
+    track_user(message)
+    user_id = message.from_user.id
+    markup = types.InlineKeyboardMarkup(row_width=3)
+    markup.add(
+        types.InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
+        types.InlineKeyboardButton("🇺🇿 O'zbekcha", callback_data="lang_uz"),
+        types.InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")
+    )
+    text = LANG_TEXTS[get_user_lang(user_id)]["select_lang"]
+    bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=markup)
+
+# Сохранение выбранного языка
+@bot.callback_query_handler(func=lambda call: call.data.startswith("lang_"))
+def set_language_callback(call):
+    lang = call.data.split("_")[1]
+    user_id = call.from_user.id
+    user_languages[user_id] = lang
+    
+    text = LANG_TEXTS[lang]["lang_changed"]
+    bot.answer_callback_query(call.id, text="Language updated!")
+    bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown")
+
 
 
 TOKEN = "9223957380:AAFJ-YtREgHozAVaU-s-9I37ZHvQQGQnCFM"
@@ -90,16 +142,26 @@ def show_stats(message):
     bot.send_message(message.chat.id, stats_text, parse_mode="Markdown")
 
 
-
-def ask_ai(prompt_text):
+def ask_ai(prompt_text, user_id=None):
     if not GEMINI_API_KEY:
-        return "⚠️ Ошибка: Ключ API не настроен."
+        return "⚠️ API key not configured."
+    
+    # Определяем язык пользователя
+    lang = user_languages.get(user_id, "ru") if user_id else "ru"
+    
+    lang_instructions = {
+        "uz": "Siz professional treydersiz. Javobni TO'LIQ O'zbek tilida, aniq va professional tarzda bering: ",
+        "en": "You are a professional trader. Answer COMPLETELY in English, accurately and professionally: ",
+        "ru": "Ты профессиональный трейдер. Дай точный и профессиональный ответ ПОЛНОСТЬЮ на русском языке: "
+    }
+    
+    system_prompt = lang_instructions.get(lang, lang_instructions["ru"])
     
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{
-            "parts": [{"text": f"Ты профессиональный трейдер. Дай точный и подробный торговый ответ на русском или узбекском языке: {prompt_text}"}]
+            "parts": [{"text": f"{system_prompt} {prompt_text}"}]
         }]
     }
     
@@ -107,7 +169,6 @@ def ask_ai(prompt_text):
         response = requests.post(url, headers=headers, json=payload, timeout=25)
         res_json = response.json()
         
-        # Железобетонное извлечение текста из ответа Gemini API
         if "candidates" in res_json:
             for candidate in res_json["candidates"]:
                 if "content" in candidate and "parts" in candidate["content"]:
@@ -115,9 +176,10 @@ def ask_ai(prompt_text):
                         if "text" in part:
                             return part["text"]
                             
-        return f"⚠️ Ошибка ответа API: {res_json.get('error', 'Пустой ответ')}"
+        return get_text(user_id, "error_ai")
     except Exception as e:
-        return f"⚠️ Ошибка соединения: {str(e)}"
+        return f"⚠️ Error: {str(e)}"
+
 
         
         # Безопасное извлечение текста ответа без пустых сбоев
@@ -256,32 +318,30 @@ def beginner_guide(message):
 # Словарь для сохранения языка каждого пользователя
 user_languages = {}
 
-@bot.message_handler(func=lambda message: message.text in ["🌐 Изменить язык / Change Language", "🌐 Tilni tansh / O'zbekcha"])
-def change_language(message):
+@bot.message_handler(func=lambda message: message.text in ["🌐 Изменить язык / Change Language", "🌐 Tilni tanlash / O'zbekcha"])
+def change_language_menu(message):
     track_user(message)
-    markup = types.InlineKeyboardMarkup(row_width=2)
+    user_id = message.from_user.id
+    markup = types.InlineKeyboardMarkup(row_width=3)
     markup.add(
-        types.InlineKeyboardButton("🇺🇿 O'zbekcha", callback_data="lang_uz"),
         types.InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
+        types.InlineKeyboardButton("🇺🇿 O'zbekcha", callback_data="lang_uz"),
         types.InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")
     )
-    bot.send_message(message.chat.id, "🌐 **Выберите язык / Select language / Tilni tanlang:**", parse_mode="Markdown", reply_markup=markup)
+    
+    text = get_text(user_id, "select_lang")
+    bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("lang_"))
-def lang_callback(call):
-    lang = call.data.split("_")[1].lower()
+def set_language_callback(call):
+    lang = call.data.split("_")[1]
     user_id = call.from_user.id
-    user_languages[user_id] = lang  # Сохраняем язык пользователя
+    user_languages[user_id] = lang  # Жестко закрепляем язык за пользователем
     
-    lang_names = {"uz": "O'zbekcha", "ru": "Русский", "en": "English"}
-    bot.answer_callback_query(call.id, text=f"Language changed to {lang_names.get(lang, lang)}")
-    
-    bot.edit_message_text(
-        f"✅ Язык успешно изменен на: **{lang_names.get(lang, lang)}**", 
-        chat_id=call.message.chat.id, 
-        message_id=call.message.message_id, 
-        parse_mode="Markdown"
-    )
+    msg = get_text(user_id, "lang_changed")
+    bot.answer_callback_query(call.id, text=f"Language updated!")
+    bot.edit_message_text(msg, chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown")
+
     bot.send_message(call.message.chat.id, "👇 Главное меню:", reply_markup=get_main_keyboard())
 
 
