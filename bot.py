@@ -56,19 +56,32 @@ def show_stats(message):
 
 def ask_ai(prompt_text):
     if not GEMINI_API_KEY:
-        return "⚠️ Ошибка: Ключ GEMINI_API_KEY не настроен."
+        return "⚠️ Ошибка: Ключ API не настроен."
     
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{
-            "parts": [{"text": f"Ты — профессиональный трейдер. Ответь кратко и четко на русском языке: {prompt_text}"}]
+            "parts": [{"text": f"Ты профессиональный трейдер. Дай точный ответ на русском языке: {prompt_text}"}]
         }]
     }
     
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=20)
         res_json = response.json()
+        
+        # Точное извлечение текста ответа Google Gemini без пустых ошибок
+        if "candidates" in res_json and len(res_json["candidates"]) > 0:
+            candidate = res_json["candidates"][0]
+            if "content" in candidate and "parts" in candidate["content"]:
+                parts = candidate["content"]["parts"]
+                if parts and "text" in parts[0]:
+                    return parts[0]["text"]
+        
+        return "⚠️ Не удалось получить данные от ИИ. Попробуйте еще раз."
+    except Exception as e:
+        return f"⚠️ Ошибка соединения: {str(e)}"
+
         
         # Безопасное извлечение текста ответа без пустых сбоев
         candidates = res_json.get("candidates", [])
