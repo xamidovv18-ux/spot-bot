@@ -152,16 +152,7 @@ def premium_menu(message):
     )
     bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=markup)
 
-# Раздел с живыми торговыми сигналами (динамическое обновление через AI в реальном времени)
 @bot.message_handler(func=lambda message: message.text == "⚡ Живые сигналы (VIP/Free)")
-def live_signals_menu(message):
-    track_user(message)
-    chat_id = message.chat.id
-    current_time = datetime.now().strftime("%H:%M:%S | %d.%m.%Y")
-    
-    sent_msg = bot.send_message(chat_id, f"⚡ **Генерирую актуальные торговые сигналы на {current_time}...**", parse_mode="Markdown")
-    
-    @bot.message_handler(func=lambda message: message.text == "⚡ Живые сигналы (VIP/Free)")
 def live_signals_menu(message):
     track_user(message)
     chat_id = message.chat.id
@@ -192,6 +183,7 @@ def live_signals_menu(message):
         )
     except Exception:
         bot.send_message(chat_id, f"⚡ **Сигналы ({current_time}):**\n\n{fresh_signals}", parse_mode="Markdown", reply_markup=markup)
+
 
 
 
