@@ -62,25 +62,26 @@ def ask_ai(prompt_text):
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{
-            "parts": [{"text": f"Ты профессиональный трейдер. Дай точный ответ на русском языке: {prompt_text}"}]
+            "parts": [{"text": f"Ты профессиональный трейдер. Дай точный и подробный ответ: {prompt_text}"}]
         }]
     }
     
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=20)
+        response = requests.post(url, headers=headers, json=payload, timeout=25)
         res_json = response.json()
         
-        # Точное извлечение текста ответа Google Gemini без пустых ошибок
-        if "candidates" in res_json and len(res_json["candidates"]) > 0:
-            candidate = res_json["candidates"][0]
-            if "content" in candidate and "parts" in candidate["content"]:
-                parts = candidate["content"]["parts"]
-                if parts and "text" in parts[0]:
-                    return parts[0]["text"]
-        
+        # Надежное извлечение текста ответа от Google Gemini
+        candidates = res_json.get("candidates", [])
+        if candidates:
+            content = candidates[0].get("content", {})
+            parts = content.get("parts", [])
+            if parts and "text" in parts[0]:
+                return parts[0]["text"]
+                
         return "⚠️ Не удалось получить данные от ИИ. Попробуйте еще раз."
     except Exception as e:
         return f"⚠️ Ошибка соединения: {str(e)}"
+
 
         
         # Безопасное извлечение текста ответа без пустых сбоев
