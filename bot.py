@@ -6,6 +6,43 @@ import yfinance as yf
 from flask import Flask, request
 from datetime import datetime
 
+# Словарь для мгновенного перевода всего интерфейса
+LANG_TEXTS = {
+    "ru": {
+        "welcome": "🤖 Привет! Я твой персональный профессиональный торговый бот.",
+        "ai_limit": "❌ **Лимит бесплатных запросов исчерпан!**\n\nОформите премиум для безлимитного доступа.",
+        "analyzing": "🤖 **Trader AI анализирует рынок и рассчитывает уровни...**",
+        "signal_header": "⚡ **Оперативные торговые сигналы**",
+        "lang_changed": "✅ **Яжк успешно изменен на:** Русский 🇷🇺",
+        "select_lang": "🌐 **Выберите язык интерфейса:**",
+        "error_ai": "⚠️ Не удалось получить данные от ИИ."
+    },
+    "uz": {
+        "welcome": "🤖 Salom! Men sizning shaxsiy professional savdo botingizman.",
+        "ai_limit": "❌ **Bepul so'rovlar limiti tugadi!**\n\nCheksiz kirish uchun Premium sotib oling.",
+        "analyzing": "🤖 **Trader AI bozorni tahlil qilmoqda va darajalarni hisoblamoqda...**",
+        "signal_header": "⚡ **Tekor savdo signallari**",
+        "lang_changed": "✅ **Til muvaffaqiyatli o'zgartirildi:** O'zbekcha 🇺🇿",
+        "select_lang": "🌐 **Interfeys tilini tanlang:**",
+        "error_ai": "⚠️ Sun'iy intellekt ma'lumotlarini olib bo'lmadi."
+    },
+    "en": {
+        "welcome": "🤖 Hello! I am your personal professional trading bot.",
+        "ai_limit": "❌ **Free request limit reached!**\n\nGet Premium for unlimited access.",
+        "analyzing": "🤖 **Trader AI is analyzing the market and calculating levels...**",
+        "signal_header": "⚡ **Live Trading Signals**",
+        "lang_changed": "✅ **Language successfully changed to:** English 🇬🇧",
+        "select_lang": "🌐 **Select interface language:**",
+        "error_ai": "⚠️ Failed to get data from AI."
+    }
+}
+
+# Функция получения текста на нужном языке
+def get_text(user_id, key):
+    lang = user_languages.get(user_id, "ru")
+    return LANG_TEXTS.get(lang, LANG_TEXTS["ru"]).get(key, LANG_TEXTS["ru"].get(key, ""))
+
+
 TOKEN = "9223957380:AAFJ-YtREgHozAVaU-s-9I37ZHvQQGQnCFM"
 bot = telebot.TeleBot(TOKEN)
 server = Flask(__name__)
